@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Streamlit
+.streamlit/
+
+# MetaTune Artifacts
+*.pkl
+*.pth
+*.png
+*_report.json
+temp_data.csv
+metatune_graph.png
+metatune_report.json
+
+# OS
+.DS_Store
+Thumbs.db
