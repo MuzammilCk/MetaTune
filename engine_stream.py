@@ -119,14 +119,15 @@ class DynamicTrainer:
         if self.dna['task_type'] == 'classification':
             self.le = LabelEncoder()
             y_train = self.le.fit_transform(y_train_raw)
-            # Handle unseen labels in validation conservatively
             y_val_raw = y_val_raw.map(lambda s: s if s in self.le.classes_ else self.le.classes_[0])
             y_val = self.le.transform(y_val_raw)
             self.output_dim = len(self.le.classes_)
             self.criterion = nn.CrossEntropyLoss()
         else:
-            y_train = y_train_raw.values.reshape(-1, 1)
-            y_val = y_val_raw.values.reshape(-1, 1)
+            # FIX: Scale Target Variable to prevent Gradient Explosion
+            self.y_scaler = StandardScaler()
+            y_train = self.y_scaler.fit_transform(y_train_raw.values.reshape(-1, 1))
+            y_val = self.y_scaler.transform(y_val_raw.values.reshape(-1, 1))
             self.output_dim = 1
             self.criterion = nn.MSELoss()
 
@@ -202,6 +203,8 @@ class DynamicTrainer:
                 out = self.model(X_b)
                 loss = self.criterion(out, y_b)
                 loss.backward()
+                # CLIP GRADIENTS to prevent explosion
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 self.optimizer.step()
                 batch_losses.append(loss.item())
             
@@ -218,11 +221,17 @@ class DynamicTrainer:
                     val_losses.append(self.criterion(out, y_b).item())
                     if self.dna['task_type'] == 'classification':
                         preds.extend(torch.argmax(out, 1).cpu().numpy())
+                        true.extend(y_b.cpu().numpy().flatten())
                     else:
-                        preds.extend(out.cpu().numpy().flatten())
-                    true.extend(y_b.cpu().numpy().flatten())
+                        # Inverse Transform for Regression Metrics
+                        batch_preds = out.cpu().numpy()
+                        batch_true = y_b.cpu().numpy()
+                        
+                        preds.extend(self.y_scaler.inverse_transform(batch_preds).flatten())
+                        true.extend(self.y_scaler.inverse_transform(batch_true).flatten())
             
             val_loss = np.mean(val_losses)
+            
             metric = accuracy_score(true, preds) if self.dna['task_type'] == 'classification' else r2_score(true, preds)
             
             # 3. DYNAMIC ADAPTATION (The "Real-Time Feedback" Promise)

@@ -71,4 +71,15 @@ class MetaTunePipeline:
             plt.savefig("metatune_graph.png"); print("📊 Visualization saved: 'metatune_graph.png'")
         except: pass
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="MetaTune Pipeline")
+    parser.add_argument("data", help="Path to CSV dataset")
+    parser.add_argument("--target", help="Target column name", default=None)
+    parser.add_argument("--epochs", type=int, default=20, help="Training epochs")
+    
+    args = parser.parse_args()
+    
+    pipeline = MetaTunePipeline(args.data, target_col=args.target)
+    pipeline.run(epochs=args.epochs)
+
 
