@@ -12,18 +12,55 @@ from brain import MetaLearner
 from engine_stream import DynamicTrainer # Updated Engine
 from algorithm_recommender import recommend_algorithms
 from sklearn_engine import train_and_package, package_to_joblib_bytes
-from utils.ui_styler import setup_tactical_style, render_tactical_hero
 
 # === UI CONFIGURATION ===
 st.set_page_config(page_title="MetaTune Workspace", page_icon="⚡", layout="wide")
 
 # Custom CSS for WandB Aesthetic
-# Custom CSS for WandB Aesthetic
-setup_tactical_style()
+st.markdown("""
+<style>
+    /* Dark Mode Base */
+    .stApp { background-color: #0E1117; color: #FFFFFF; }
+    
+    /* Metrics Cards */
+    div[data-testid="stMetric"] {
+        background-color: #1E1E1E;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #00FFFF; /* Cyan Accent */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    
+    /* Headers */
+    h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 600; }
+    h1 { color: #FAFAFA; }
+    .highlight { color: #FFD700; }
+    
+    /* Buttons */
+    .stButton>button {
+        background: linear-gradient(90deg, #FF4B4B 0%, #FF00FF 100%);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+    }
+    
+    /* Plotly Chart Container */
+    .js-plotly-plot {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # === SIDEBAR: PROJECT CONFIG ===
 with st.sidebar:
-
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Python-logo-notext.svg/1200px-Python-logo-notext.svg.png", width=50)
     st.title("MetaTune / Core")
     st.markdown("Automatic Hyperparameter Optimization")
     
@@ -39,7 +76,7 @@ with st.sidebar:
     status_indicator.info("System Idle")
 
 # === MAIN WORKSPACE ===
-render_tactical_hero(main_text="METATUNE", sub_text="EXPERIMENT", subtitle="Advanced Hyperparameter Optimization")
+st.title("⚡ MetaTune Experiment Dashboard")
 
 if uploaded_file:
     # Save temp file
@@ -199,7 +236,7 @@ if uploaded_file:
                 fig_loss.add_trace(go.Scatter(x=history['epoch'], y=history['val_loss'], 
                                             mode='lines', name='Val', line=dict(color='#FF00FF', width=2)))
                 fig_loss.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#1E1E1E',
                     font_color='#B0B3B8', margin=dict(l=10, r=10, t=10, b=10), height=300,
                     xaxis=dict(showgrid=False, title="Epoch"), 
                     yaxis=dict(showgrid=True, gridcolor='#333', title="Loss"),
@@ -213,7 +250,7 @@ if uploaded_file:
                                            mode='lines+markers', name='L2 Reg', 
                                            line=dict(color='#FFFF00', width=3)))
                 fig_reg.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#1E1E1E',
                     font_color='#B0B3B8', margin=dict(l=10, r=10, t=10, b=10), height=300,
                     xaxis=dict(showgrid=False, title="Epoch"), 
                     yaxis=dict(showgrid=True, gridcolor='#333', title="Weight Decay Strength"),
