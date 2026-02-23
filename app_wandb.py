@@ -18,52 +18,72 @@ from sklearn_engine import train_and_package, package_to_joblib_bytes
 # === UI CONFIGURATION ===
 st.set_page_config(page_title="MetaTune Workspace", page_icon="⚡", layout="wide")
 
-# === CINEMATIC INTRO GATE (Simple Version) ===
-import os
+# === CINEMATIC INTRO GATE ===
 
 if 'intro_done' not in st.session_state:
     st.session_state['intro_done'] = False
 
+# ── LAYER 1: catch ?intro=done on every render BEFORE drawing anything ──
+_intro_param = st.query_params.get('intro', None)
+if isinstance(_intro_param, list):
+    _intro_param = _intro_param[0] if _intro_param else None
+if _intro_param == 'done':
+    st.session_state['intro_done'] = True
+    st.query_params.clear()
+    st.rerun()
+
+# ── LAYER 2: session gate + full-viewport chrome removal ──
 if not st.session_state['intro_done']:
-    # Hide Streamlit chrome and make iframe fullscreen
+
     st.markdown("""
     <style>
     #MainMenu, footer, header,
     [data-testid="stSidebar"],
-    [data-testid="stToolbar"] { display: none !important; }
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"] { display: none !important; }
     .main .block-container { padding: 0 !important; max-width: 100vw !important; margin: 0 !important; }
+    .stApp { background: #020617 !important; }
     iframe {
-      width: 100vw !important;
-      height: 100vh !important;
-      position: fixed !important;
-      top: 0 !important; left: 0 !important;
-      z-index: 9999 !important;
-      border: none !important;
+        display: block !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        z-index: 9999 !important;
+        border: none !important;
+        margin: 0 !important; padding: 0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    intro_path = os.path.join(os.path.dirname(__file__), 'intro.html')
-    if os.path.exists(intro_path):
-        with open(intro_path, 'r', encoding='utf-8') as f:
-            intro_html = f.read()
-        components.html(intro_html, height=800, scrolling=False)
+    # ── LAYER 3: postMessage listener in Streamlit parent ──
+    # intro.html fires postMessage({type:'METATUNE_INTRO_COMPLETE'})
+    # this script catches it and navigates to ?intro=done → Streamlit reruns
+    st.markdown("""
+    <script>
+    (function () {
+        if (window.__metatuneListenerAttached) return;
+        window.__metatuneListenerAttached = true;
+        window.addEventListener('message', function (ev) {
+            if (ev.data && ev.data.type === 'METATUNE_INTRO_COMPLETE') {
+                var url = new URL(window.location.href);
+                url.searchParams.set('intro', 'done');
+                window.location.href = url.toString();
+            }
+        }, false);
+    })();
+    </script>
+    """, unsafe_allow_html=True)
 
-    # Check if user completed intro via URL param
-    params = st.query_params
-    if params.get('intro') == 'done':
-        st.session_state['intro_done'] = True
-        # Clean URL param
-        st.query_params.clear()
-        st.rerun()
-
-    # Optional fallback skip button in case of issues
-    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([2,1,2])
-    with col2:
-        if st.button("SKIP INTRO", key="skip_intro_btn"):
-            st.session_state['intro_done'] = True
-            st.rerun()
+    # ── LAYER 4: render intro.html ──
+    _intro_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'intro.html')
+    if os.path.exists(_intro_path):
+        with open(_intro_path, 'r', encoding='utf-8') as _f:
+            _intro_html = _f.read()
+        components.html(_intro_html, height=800, scrolling=False)
+    else:
+        st.error("⚠️ intro.html not found — place it next to app_wandb.py and restart.")
 
     st.stop()
 
