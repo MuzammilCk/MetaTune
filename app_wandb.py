@@ -503,14 +503,7 @@ if uploaded_file:
           <div style="font-family:var(--font-mono); font-size:8px; letter-spacing:4px; color:var(--text-dim); margin-bottom:14px; text-transform:uppercase;">GENOME READOUT</div>
 
           {''.join([
-            f'''<div style="margin-bottom:10px;">
-              <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; letter-spacing:1px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;">
-                <span>{name}</span><span style="color:var(--text-secondary);">{val:.4f}</span>
-              </div>
-              <div style="background:rgba(26,37,64,0.6); height:2px; border-radius:1px; overflow:hidden;">
-                <div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div>
-              </div>
-            </div>'''
+            f'''<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; letter-spacing:1px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;"><span>{name}</span><span style="color:var(--text-secondary);">{val:.4f}</span></div><div style="background:rgba(26,37,64,0.6); height:2px; border-radius:1px; overflow:hidden;"><div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div></div></div>'''
             for name, val, pct, color1, color2 in [
               ('TARGET ENTROPY',    dna.get('target_entropy',0),         min(dna.get('target_entropy',0)/2,1),        '#00FF88','#00D4FF'),
               ('SPARSITY',          dna.get('sparsity',0),               min(dna.get('sparsity',0),1),                '#FFB800','#FF006E'),
@@ -761,15 +754,7 @@ if uploaded_file:
   <!-- Phase sequence -->
   <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">
     {''.join([
-      f'''<div style="
-        background:{'rgba(0,255,136,0.08)' if i==0 else 'rgba(255,255,255,0.02)'};
-        border:1px solid {'var(--dna-green)' if i==0 else 'var(--border)'};
-        padding:14px; text-align:center;
-        {'animation:neuralPulse 2s infinite;' if i==0 else ''}
-      ">
-        <div style="font-size:18px; margin-bottom:6px;">{em}</div>
-        <div style="color:{'var(--dna-green)' if i==0 else 'var(--text-dim)'}; font-size:8px; letter-spacing:2px;">{label}</div>
-      </div>'''
+      f'<div style="background:{"rgba(0,255,136,0.08)" if i==0 else "rgba(255,255,255,0.02)"}; border:1px solid {"var(--dna-green)" if i==0 else "var(--border)"}; padding:14px; text-align:center; {"animation:neuralPulse 2s infinite;" if i==0 else ""}"><div style="font-size:18px; margin-bottom:6px;">{em}</div><div style="color:{"var(--dna-green)" if i==0 else "var(--text-dim)"}; font-size:8px; letter-spacing:2px;">{label}</div></div>'
       for i,(em,label) in enumerate([('🧬','DATA PREP'),('🏗️','BUILDING'),('🎯','FITTING'),('📦','PACKAGING')])
     ])}
   </div>
@@ -850,15 +835,7 @@ if uploaded_file:
   <!-- 3-column metric grid -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:28px;">
     {''.join([
-      f'''<div style="
-        background:var(--panel);border:1px solid {bc}33;
-        border-left:3px solid {bc};padding:20px;text-align:center;
-        clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);
-      ">
-        <div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div>
-        <div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div>
-        <div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div>
-      </div>'''
+      f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
       for lb,vl,bc,sl in [
         (metric_name.upper(),        f'{final_metric:.4f}',    score_color,             'PRIMARY OBJECTIVE'),
         ('TRAIN TIME',               f'{training_time:.2f}s',  'var(--evolution-purple)','WALL CLOCK'),
@@ -883,10 +860,7 @@ if uploaded_file:
     <div style="font-family:var(--font-mono);font-size:8px;letter-spacing:4px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;">HYPERPARAMETER CONFIGURATION — TRIAL #{active_trial.id}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
       {''.join([
-        f'''<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,37,64,0.4);">
-          <span style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;">{str(k).upper()[:14]}</span>
-          <span style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:10px;font-weight:700;">{''.join([f'{v:.4f}' if isinstance(v,float) else str(v)])}</span>
-        </div>'''
+        f'''<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,37,64,0.4);"><span style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;">{str(k).upper()[:14]}</span><span style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:10px;font-weight:700;">{''.join([f'{v:.4f}' if isinstance(v,float) else str(v)])}</span></div>'''
         for k,v in list(params.items())[:6]
       ])}
     </div>
