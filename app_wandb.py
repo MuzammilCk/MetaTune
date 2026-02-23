@@ -145,7 +145,8 @@ if uploaded_file:
 
         st.markdown("---")
         st.subheader("🧩 Algorithm Recommendation")
-        recommendations = recommend_algorithms(dna, params)
+        raw = recommend_algorithms(dna, params)
+        recommendations = raw["recommendations"] if isinstance(raw, dict) else raw
         algo_label_to_id = {c["label"]: c["id"] for c in recommendations}
         default_algo_label = recommendations[0]["label"] if recommendations else "Neural Network (PyTorch)"
         selected_algo_label = st.selectbox(
@@ -172,7 +173,7 @@ if uploaded_file:
         if selected_algorithm_id != "pytorch_mlp":
             status_indicator.warning(f"Training & packaging (deployable) for Trial #{active_trial.id}...")
             with st.spinner("Training deployable model..."):
-                package, metrics = train_and_package(
+                package, training_results = train_and_package(
                     data_path="temp.csv",
                     dna=dna,
                     algorithm_id=selected_algorithm_id,
@@ -181,15 +182,42 @@ if uploaded_file:
                 )
                 payload = package_to_joblib_bytes(package)
 
-            metric_key = list(metrics.keys())[0] if metrics else "metric"
-            metric_value = float(metrics.get(metric_key, 0.0))
+            if (training_results is not None and training_results.get('final_metric') is not None):
+                # --- Vizier Trial Tracking ---
+                if 'study' not in st.session_state:
+                    from vizier_stub import Study
+                    st.session_state['study'] = Study(name="metatune_session")
 
-            active_trial.complete(Measurement(metrics={metric_key: metric_value}))
-            designer.update(active_trial, study.trials)
+                from vizier_stub import Trial
+                _run_id = len(st.session_state['study'].get_trials())
+                _trial = Trial(id=_run_id, parameters=params)
+                _trial.complete(
+                    metric_value=training_results.get('final_metric', 0.0),
+                    elapsed_secs=training_results.get('training_time', 0.0)
+                )
+                st.session_state['study'].add_trial(_trial)
+                # --- End Trial Tracking ---
 
-            status_indicator.success(f"Trial #{active_trial.id} Completed")
-            st.success(f"🏆 Final {metric_key.upper()}: {metric_value:.4f}")
-            st.download_button(
+                active_trial.complete(metric_value=training_results.get('final_metric', 0.0), elapsed_secs=training_results.get('training_time', 0.0))
+                designer.update(active_trial, study.trials)
+
+                status_indicator.success(f"Trial #{active_trial.id} Completed")
+                st.success(f"🏆 Final {training_results.get('metric_name', 'Metric')}: {training_results.get('final_metric', 0.0):.4f}")
+                
+                # --- Best Run Panel ---
+                if 'study' in st.session_state:
+                    _optimal = st.session_state['study'].optimal_trials()
+                    if _optimal:
+                        _best = _optimal[0]
+                        st.success(
+                            f"🏆 **Best run so far:** `{_best.final_measurement:.4f}` — "
+                            f"Trial #{_best.id} · {_best.elapsed_secs:.1f}s"
+                        )
+                        with st.expander("Best hyperparameters"):
+                            st.json(_best.parameters)
+                # --- End Best Run Panel ---
+
+                st.download_button(
                 label="📦 Download Deployable Package (.joblib)",
                 data=payload,
                 file_name=f"metatune_{selected_algorithm_id}_package.joblib",
@@ -216,6 +244,7 @@ if uploaded_file:
             
             # === THE TRAINING LOOP ===
             final_metric = 0.0
+            start_time = time.time()
             for stats in trainer.run(epochs=30):
                 # Update Data
                 history['epoch'].append(stats['epoch'])
@@ -262,16 +291,52 @@ if uploaded_file:
                 time.sleep(0.02) # Yield for rendering
                 
             # === COMPLETE THE TRIAL ===
-            metric_key = 'accuracy' if dna.get('task_type') == 'classification' else 'r2'
-            active_trial.complete(Measurement(metrics={metric_key: final_metric}))
-            designer.update(active_trial, study.trials)
+            metric_key = 'Accuracy' if dna.get('task_type') == 'classification' else 'R2 Score'
+            training_results = {
+                'final_metric': final_metric,
+                'metric_name': metric_key,
+                'training_time': time.time() - start_time
+            }
             
-            status_indicator.success(f"Trial #{active_trial.id} Completed")
-            st.balloons()
-            
-            # Final Metrics
-            metric_label = 'Accuracy' if metric_key == 'accuracy' else 'R2'
-            st.success(f"🏆 Final {metric_label}: {final_metric:.4f}")
+            if (training_results is not None and training_results.get('final_metric') is not None):
+                # --- Vizier Trial Tracking ---
+                if 'study' not in st.session_state:
+                    from vizier_stub import Study
+                    st.session_state['study'] = Study(name="metatune_session")
+
+                from vizier_stub import Trial
+                _run_id = len(st.session_state['study'].get_trials())
+                _trial = Trial(id=_run_id, parameters=params)
+                _trial.complete(
+                    metric_value=training_results.get('final_metric', 0.0),
+                    elapsed_secs=training_results.get('training_time', 0.0)
+                )
+                st.session_state['study'].add_trial(_trial)
+                # --- End Trial Tracking ---
+
+                active_trial.complete(metric_value=training_results.get('final_metric', 0.0), elapsed_secs=training_results.get('training_time', 0.0))
+                designer.update(active_trial, study.trials)
+                
+                status_indicator.success(f"Trial #{active_trial.id} Completed")
+                st.balloons()
+                
+                # Final Metrics
+                st.success(f"🏆 Final {training_results.get('metric_name', 'Metric')}: {training_results.get('final_metric', 0.0):.4f}")
+                
+                # --- Best Run Panel ---
+                if 'study' in st.session_state:
+                    _optimal = st.session_state['study'].optimal_trials()
+                    if _optimal:
+                        _best = _optimal[0]
+                        st.success(
+                            f"🏆 **Best run so far:** `{_best.final_measurement:.4f}` — "
+                            f"Trial #{_best.id} · {_best.elapsed_secs:.1f}s"
+                        )
+                        with st.expander("Best hyperparameters"):
+                            st.json(_best.parameters)
+                # --- End Best Run Panel ---
+            else:
+                st.error("⚠️ Training did not complete. Check your dataset and hyperparameters.")
             
             # Save Model Button
             torch.save(trainer.model.state_dict(), "best_model.pth")

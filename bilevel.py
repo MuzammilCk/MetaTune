@@ -1,182 +1,127 @@
 """
-Bilevel Optimization Engine for MetaTune
-=========================================
+Bilevel Optimization Engine for MetaTune (Vizier-Inspired)
+==========================================================
 
-Implements the TRUE meta-learning loop from the abstract:
-- Inner Loop: Train model with predicted hyperparameters
-- Outer Loop: Update meta-learner based on training results
+Outer Loop (meta-learner / Vizier-style):
+  -> brain.predict(dataset_dna)          -> TrialSuggestion equivalent
+  -> engine.run(hyperparams)             -> Trial evaluation
+  -> store result as "completed trial"   -> Measurement equivalent  
+  -> brain.train() with new experience   -> Designer.update() equivalent
+  -> repeat until convergence or budget  -> MetaLearningConfig.tuning_max_num_trials
 
-This addresses the "real-time feedback" and "gradient-based optimization"
-requirements from the abstract.
+Usage in pipeline.py:
+# optimizer = BilevelOptimizer(meta_learner=self.meta_learner)
+# best_params = optimizer.optimize(dataset_dna, X_train, y_train, X_val, y_val, task_type)
 """
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
 import numpy as np
-from copy import deepcopy
-import time
+import pandas as pd
+import torch
+from dataclasses import dataclass
+import copy
+import ast
 
+from brain import MetaLearner
+from engine import DynamicTrainer
+
+@dataclass
+class BilevelConfig:
+    min_trials: int = 5           # Vizier: tuning_min_num_trials
+    max_outer_iterations: int = 10 # Vizier: (max-min)/num_per_tuning
+    population_size: int = 3      # Vizier: pool_size
+    perturbation: float = 0.1     # Vizier: FireflyAlgorithmConfig.perturbation
+    perturbation_lower_bound: float = 0.01  # Vizier: perturbation_lower_bound
 
 class BilevelOptimizer:
-    """
-    Implements bilevel optimization:
-    
-    Inner Problem (Lower Level):
-        min_θ L_train(θ, λ)  where λ = hyperparameters
-        
-    Outer Problem (Upper Level):
-        min_λ L_val(θ*(λ), λ)  where θ* = optimal model params given λ
-    
-    This creates a feedback loop where the meta-learner learns from
-    actual training outcomes, not just synthetic heuristics.
-    """
-    
-    def __init__(self, meta_learner, dataset_dna):
-        """
-        Args:
-            meta_learner: The MetaLearner brain
-            dataset_dna: Dataset characteristics
-        """
+    def __init__(self, meta_learner, config: BilevelConfig = None):
         self.meta_learner = meta_learner
-        self.dna = dataset_dna
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        # Meta-optimizer (updates the meta-learner)
-        self.meta_optimizer = optim.Adam(
-            self.meta_learner.model.parameters(), 
-            lr=0.001
-        )
-        
-        # History tracking
-        self.meta_loss_history = []
-        self.hyperparameter_history = []
-        
-        print("🔄 Bilevel Optimizer initialized")
+        self.config = config or BilevelConfig()
+        self.trial_history = []  # List of {"hyperparams": dict, "val_metric": float}
+        self.state = "INITIALIZE"
     
-    def inner_loop(self, model, train_loader, val_loader, 
-                   hyperparams, inner_steps=20):
-        """
-        Inner loop: Train the model with given hyperparameters.
+    def optimize(self, dataset_dna: dict, X_train, y_train, X_val, y_val, task_type: str) -> dict:
+        """Run bilevel optimization. Returns best hyperparams found."""
+        self.current_dna = dataset_dna
         
-        Args:
-            model: Neural network to train
-            train_loader: Training data
-            val_loader: Validation data
-            hyperparams: Dict of hyperparameters from meta-learner
-            inner_steps: Number of training epochs
+        print(f"🔄 Starting Bilevel Optimization (Vizier Inspired) for {self.config.max_outer_iterations} iterations.")
+        
+        # STATE 1 - INITIALIZE
+        self.state = "INITIALIZE"
+        print(f"   [STATE: {self.state}] Gathering initial {self.config.min_trials} trials...")
+        for _ in range(self.config.min_trials):
+            hyperparams = self.meta_learner.predict(dataset_dna)
+            val_metric = self._evaluate_hyperparams(hyperparams, X_train, y_train, X_val, y_val, task_type)
+            self.trial_history.append({"hyperparams": hyperparams, "val_metric": val_metric})
+            self.meta_learner.store_experience(dataset_dna, hyperparams, val_metric)
+
+        # STATE 2 - TUNE
+        self.state = "TUNE"
+        print(f"   [STATE: {self.state}] Starting evolutionary search for {self.config.max_outer_iterations} outer iterations...")
+        search_hint_str = dataset_dna.get("vizier_search_space_hint", "{}")
+        try:
+            search_hint = ast.literal_eval(search_hint_str) if search_hint_str else {}
+        except Exception:
+            search_hint = {}
+
+        for iteration in range(self.config.max_outer_iterations):
+            best_anchor = self.get_best_hyperparams()
+            print(f"      Outer Iteration {iteration+1}/{self.config.max_outer_iterations} - Perturbing from best anchor")
             
-        Returns:
-            validation_loss: Performance metric for outer loop
-            trained_model: Model after training
-        """
-        # Setup optimizer with predicted hyperparameters
-        lr = hyperparams['learning_rate']
-        weight_decay = hyperparams['weight_decay_l2']
+            candidates = []
+            for _ in range(self.config.population_size):
+                candidate_hp = self._perturb_hyperparams(best_anchor, search_hint)
+                val_metric = self._evaluate_hyperparams(candidate_hp, X_train, y_train, X_val, y_val, task_type)
+                candidates.append({"hyperparams": candidate_hp, "val_metric": val_metric})
+                self.meta_learner.store_experience(dataset_dna, candidate_hp, val_metric)
+            
+            self.trial_history.extend(candidates)
+
+        # STATE 3 - USE_BEST
+        self.state = "USE_BEST"
+        print(f"   [STATE: {self.state}] Training meta-learner on accumulated experience...")
+        self.meta_learner.train()
         
-        if hyperparams['optimizer_type'] == 'adam':
-            optimizer = optim.Adam(
-                model.parameters(), 
-                lr=lr, 
-                weight_decay=weight_decay
-            )
-        else:
-            optimizer = optim.SGD(
-                model.parameters(), 
-                lr=lr,
-                momentum=0.9,
-                weight_decay=weight_decay
-            )
-        
-        criterion = nn.CrossEntropyLoss() if self.dna['task_type'] == 'classification' else nn.MSELoss()
-        
-        # Train for inner_steps epochs
-        model.train()
-        for epoch in range(inner_steps):
-            for batch_X, batch_y in train_loader:
-                optimizer.zero_grad()
-                predictions = model(batch_X)
-                loss = criterion(predictions, batch_y)
-                loss.backward()
-                
-                # Gradient clipping (stability)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                
-                optimizer.step()
-        
-        # Evaluate on validation set
-        model.eval()
-        val_loss = 0
-        with torch.no_grad():
-            for batch_X, batch_y in val_loader:
-                predictions = model(batch_X)
-                loss = criterion(predictions, batch_y)
-                val_loss += loss.item()
-        
-        avg_val_loss = val_loss / len(val_loader)
-        
-        return avg_val_loss, model
+        best_found = self.get_best_hyperparams()
+        print(f"✅ Bilevel Optimization Complete. Best metric found.")
+        return best_found
     
-    def outer_loop_step(self, base_model, train_loader, val_loader):
-        """
-        Outer loop: Update meta-learner based on validation performance.
-        
-        This is the KEY innovation - the meta-learner learns from
-        actual training outcomes, not just heuristics.
-        
-        Returns:
-            meta_loss: Loss used to update meta-learner
-            predicted_params: Hyperparameters used
-        """
-        # === STEP 1: Get current hyperparameter prediction ===
-        predicted_params = self.meta_learner.predict(self.dna)
-        
-        # === STEP 2: Train model with these hyperparameters (inner loop) ===
-        # Clone model to avoid modifying original
-        model_copy = deepcopy(base_model).to(self.device)
-        
-        val_loss, trained_model = self.inner_loop(
-            model_copy,
-            train_loader,
-            val_loader,
-            predicted_params,
-            inner_steps=10  # Quick inner training
-        )
-        
-        # === STEP 3: Compute meta-loss ===
-        # The meta-loss measures how well the predicted hyperparameters
-        # led to good model performance
-        
-        # We want to MINIMIZE validation loss through hyperparameter choice
-        meta_loss = torch.tensor(val_loss, requires_grad=True).to(self.device)
-        
-        # === STEP 4: Update meta-learner ===
-        self.meta_optimizer.zero_grad()
-        
-        # To enable gradient flow, we need to re-predict hyperparameters
-        # with gradients enabled
-        dna_tensor = self._dna_to_tensor(self.dna)
-        hyperparam_tensor = self.meta_learner.model(dna_tensor)
-        
-        # Penalize if predicted hyperparameters led to high validation loss
-        # This teaches the meta-learner to predict better hyperparameters
-        penalty = meta_loss * torch.sum(torch.abs(hyperparam_tensor))
-        penalty.backward()
-        
-        self.meta_optimizer.step()
-        
-        # Track history
-        self.meta_loss_history.append(val_loss)
-        self.hyperparameter_history.append(predicted_params.copy())
-        
-        return val_loss, predicted_params
+    def _evaluate_hyperparams(self, hyperparams: dict, X_train, y_train, X_val, y_val, task_type: str) -> float:
+        """Inner loop: train with given hyperparams, return val metric."""
+        # DynamicTrainer internally reads temp.csv. We use it to match MetaTune architecture.
+        trainer = DynamicTrainer(data_path="temp.csv", dataset_dna=self.current_dna, hyperparameters=hyperparams)
+        result = trainer.run(epochs=10)
+        return result.get("final_metric", 0.0)
     
-    def _dna_to_tensor(self, dna):
-        """Convert DNA dict to tensor for meta-learner."""
-        features = []
-        for feat in self.meta_learner.input_features:
-            features.append(dna.get(feat, 0.0))
+    def _perturb_hyperparams(self, base_hyperparams: dict, search_hint: dict) -> dict:
+        """Generate a perturbed candidate. Only perturb continuous params."""
+        candidate = copy.deepcopy(base_hyperparams)
+        continuous_keys = ['learning_rate', 'dropout', 'weight_decay_l2']
         
-        X = np.array(features).reshape(1, -1)
-        X = self.meta_learner.scaler.transform(X)
-        return torch.FloatTensor(X).to(self.device)
+        for key in continuous_keys:
+            if key in candidate:
+                val = candidate[key]
+                noise = np.random.normal(0, self.config.perturbation)
+                perturbed_val = abs(val + noise)
+                
+                # Check for perturbation lower bound
+                if perturbed_val < self.config.perturbation_lower_bound and key != 'dropout':
+                    perturbed_val = float(self.config.perturbation_lower_bound)
+                    
+                # Clamp to search_space_hint bounds
+                if key in search_hint and isinstance(search_hint[key], list) and len(search_hint[key]) == 2:
+                    bounds = search_hint[key]
+                    perturbed_val = np.clip(perturbed_val, bounds[0], bounds[1])
+                elif key == 'dropout':
+                    perturbed_val = np.clip(perturbed_val, 0.0, 0.5)
+                    
+                candidate[key] = float(perturbed_val)
+                
+        return candidate
+    
+    def get_best_hyperparams(self) -> dict:
+        """Return hyperparams with best val_metric from trial_history."""
+        if not self.trial_history:
+            return {}
+        # Assuming higher metric is better (Accuracy, R2)
+        best_trial = max(self.trial_history, key=lambda x: x["val_metric"])
+        return best_trial["hyperparams"]

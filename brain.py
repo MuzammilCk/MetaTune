@@ -121,8 +121,10 @@ class MetaLearner:
                 for col in existing_columns:
                     if col not in df_row.columns:
                         df_row[col] = 0
-                # Ensure order matches
-                df_row = df_row[existing_columns]
+                # Filter down and ensure order matches
+                df_row = df_row[self.knowledge_base.columns.intersection(df_row.columns)] if hasattr(self, 'knowledge_base') else df_row[pd.Index(existing_columns).intersection(df_row.columns)]
+                
+                # Append to existing
                 df_row.to_csv(self.knowledge_base_path, mode='a', header=False, index=False)
             except pd.errors.EmptyDataError:
                 # File exists but empty?
@@ -136,8 +138,8 @@ class MetaLearner:
             return
 
         df = pd.read_csv(self.knowledge_base_path)
-        if len(df) < 5:
-            print(f"⚠️ Not enough data to train (Found {len(df)} records, need 5). Using heuristics.")
+        if len(df) < 20:
+            print(f"⚠️  Only {len(df)} records. Need 20+ for reliable training. Using heuristics.")
             return
 
         # === EVOLUTIONARY SELECTION ===
@@ -182,8 +184,18 @@ class MetaLearner:
         """Step D: Prediction with Evolutionary Exploration (Mutation)."""
         if not self.is_trained:
             if os.path.exists("meta_brain_weights.pth"):
-                pass 
-            return self._bootstrap_heuristics(dataset_dna)
+                try:
+                    checkpoint = torch.load("meta_brain_weights.pth", map_location='cpu', weights_only=False)
+                    self.model = AdvancedMetaNet(input_dim=len(self.input_features)).to(self.device)
+                    self.model.load_state_dict(checkpoint['model_state'])
+                    self.scaler = checkpoint['scaler']
+                    self.is_trained = True
+                    print("✅ Meta-brain weights loaded from disk.")
+                except Exception as e:
+                    print(f"⚠️  Could not load weights: {e}. Using heuristics.")
+                    return self._bootstrap_heuristics(dataset_dna)
+            else:
+                return self._bootstrap_heuristics(dataset_dna)
 
         feats = [dataset_dna.get(f, 0) for f in self.input_features]
         X = self.scaler.transform(np.array(feats).reshape(1, -1))
@@ -194,12 +206,12 @@ class MetaLearner:
             raw_preds = self.model(X_tensor).cpu().numpy()[0]
             
         # === EVOLUTIONARY MUTATION (EXPLORATION) ===
-        # Add 10% Gaussian noise to encourage exploring new hyperparameters
-        # This prevents getting stuck in local optima
-        noise = np.random.normal(0, 0.1, size=raw_preds.shape)
-        raw_preds += noise
+        # Continuous params only: Vizier-style perturbation
+        noise = np.random.normal(0, 0.1, size=2) # Only lr and weight decay gets noise here as dropout is categorical like
+        raw_preds[0:2] += noise # Apply to LR and WD
+        raw_preds[3] += np.random.normal(0, 0.1) # Apply to Dropout separately
             
-        return {
+        predictions = {
             'learning_rate': float(np.abs(raw_preds[0])), 
             'weight_decay_l2': float(np.abs(raw_preds[1])),
             'batch_size': int(np.clip(raw_preds[2], 16, 256)), 
@@ -207,11 +219,28 @@ class MetaLearner:
             'optimizer_type': 'adam' if raw_preds[4] > 0.5 else 'sgd'
         }
         
-    def save(self, path="meta_brain.pkl"):
-        with open(path, 'wb') as f: pickle.dump(self, f)
+        hint_str = dataset_dna.get("vizier_search_space_hint", "{}")
+        return self._clamp_to_search_space(predictions, hint_str)
+        
+    def _clamp_to_search_space(self, predictions: dict, hint_str: str) -> dict:
+        """Clamp predicted hyperparameters to the Vizier search space hint bounds."""
+        try:
+            import ast
+            hint = ast.literal_eval(hint_str) if hint_str else {}
+            for param, bounds in hint.items():
+                if param in predictions and isinstance(bounds, list) and len(bounds) == 2:
+                    predictions[param] = float(np.clip(predictions[param], bounds[0], bounds[1]))
+        except Exception:
+            pass  # Silently ignore malformed hints
+        return predictions
+
+    def save(self, path="meta_brain_weights.pth"):
+        if self.model:
+            torch.save({'model_state': self.model.state_dict(), 'scaler': self.scaler}, path)
     
     @staticmethod
-    def load(path="meta_brain.pkl"):
+    def load(path="meta_brain_weights.pth"):
+        # Deprecated logic in MetaTune setup, preserved header merely
         with open(path, 'rb') as f: return pickle.load(f)
 
 
