@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MetaTune Intro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Share+Tech+Mono&family=Bebas+Neue&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --void: #03040a;
+      --deep: #080b14;
+      --surface: #0d1220;
+      --panel: #111827;
+      --border: #1a2540;
+      --dna-green: #00ff88;
+      --neural-amber: #ffb800;
+      --quantum-magenta: #ff006e;
+      --bio-cyan: #00d4ff;
+      --evolution-purple: #9b5de5;
+      --text-primary: #e8eef4;
+      --text-secondary: #7a8ba0;
+      --text-dim: #3d4f66;
+      --font-display: "Bebas Neue", sans-serif;
+      --font-tech: "Chakra Petch", sans-serif;
+      --font-mono: "Share Tech Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #101828 0%, #02030a 55%, #000000 100%);
+      color: var(--text-primary);
+      font-family: var(--font-tech);
+    }
+
+    body {
+      position: relative;
+    }
+
+    canvas#bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
+      background: radial-gradient(circle at top, #111827 0%, #02030a 55%, #000000 100%);
+    }
+
+    .vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at top, rgba(0, 212, 255, 0.18), transparent 55%),
+        radial-gradient(circle at bottom, rgba(255, 0, 110, 0.18), transparent 60%),
+        radial-gradient(circle at center, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.8) 70%);
+      mix-blend-mode: screen;
+      z-index: 1;
+    }
+
+    .scanline {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.06),
+        rgba(255, 255, 255, 0.06) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      opacity: 0.12;
+      mix-blend-mode: soft-light;
+      z-index: 2;
+    }
+
+    .grain {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3' stitchTiles='noStitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+      opacity: 0.55;
+      z-index: 3;
+    }
+
+    .hud {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      /* Internal padding is fine – background still fills screen */
+      padding: min(3vh, 24px) min(4vw, 56px);
+      box-sizing: border-box;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .hud-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .hud-tagline {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--dna-green);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      opacity: 0.9;
+    }
+
+    .hud-tagline span.line {
+      flex: 0 0 40px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--dna-green), transparent);
+      box-shadow: 0 0 12px rgba(0, 255, 136, 0.6);
+    }
+
+    .hud-top-right {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .hud-pill {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      padding: 6px 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.9),
+        rgba(3, 7, 18, 0.95)
+      );
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.8),
+        0 0 24px rgba(15, 23, 42, 0.9);
+    }
+
+    .hud-pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--dna-green);
+      box-shadow:
+        0 0 6px rgba(0, 255, 136, 0.95),
+        0 0 16px rgba(0, 255, 136, 0.75);
+      animation: heartbeat 1.8s infinite;
+    }
+
+    .hud-scene-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.25em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .hud-progress-shell {
+      position: relative;
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.8);
+    }
+
+    .hud-progress-track {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        90deg,
+        rgba(148, 163, 184, 0.24),
+        rgba(55, 65, 81, 0.4),
+        rgba(148, 163, 184, 0.2)
+      );
+      opacity: 0.65;
+      mix-blend-mode: screen;
+    }
+
+    .hud-progress-fill {
+      position: absolute;
+      inset: 0;
+      width: 0%;
+      background: linear-gradient(
+        90deg,
+        var(--quantum-magenta),
+        var(--evolution-purple),
+        var(--bio-cyan),
+        var(--dna-green)
+      );
+      background-size: 220% 100%;
+      box-shadow:
+        0 0 12px rgba(255, 0, 110, 0.75),
+        0 0 26px rgba(0, 212, 255, 0.7);
+      border-radius: inherit;
+      animation: borderTrace 1.6s linear infinite;
+      transform-origin: left center;
+    }
+
+    .hud-bottom {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .scene-stack {
+      position: relative;
+      max-width: min(960px, 90vw);
+      min-height: clamp(240px, 38vh, 440px);
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .scene {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: min(5vh, 40px) min(3vw, 40px);
+      opacity: 0;
+      transform: translateY(16px);
+      pointer-events: none;
+    }
+
+    .scene.active {
+      opacity: 1;
+      transform: translateY(0);
+      transition:
+        opacity 0.7s ease,
+        transform 0.7s ease;
+      pointer-events: auto;
+    }
+
+    .scene-heading-kicker {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .scene-heading-kicker span.badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 10px;
+      margin-right: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      font-size: 8px;
+      letter-spacing: 0.26em;
+      color: rgba(226, 232, 240, 0.9);
+      background: radial-gradient(circle at top, rgba(148, 163, 184, 0.28), rgba(15, 23, 42, 0.94));
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.9),
+        0 0 18px rgba(148, 163, 184, 0.5);
+    }
+
+    .scene-title {
+      font-family: var(--font-display);
+      font-size: clamp(40px, 6vw, 74px);
+      letter-spacing: 0.12em;
+      line-height: 0.92;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .scene-title span.accent {
+      color: var(--dna-green);
+      text-shadow:
+        0 0 18px rgba(0, 255, 136, 0.75),
+        0 0 36px rgba(0, 255, 136, 0.55);
+    }
+
+    .scene-title span.danger {
+      color: var(--quantum-magenta);
+      text-shadow:
+        0 0 18px rgba(255, 0, 110, 0.8),
+        0 0 34px rgba(255, 0, 110, 0.7);
+    }
+
+    .scene-body {
+      max-width: 640px;
+      font-family: var(--font-tech);
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      margin-bottom: 22px;
+    }
+
+    .scene-body strong {
+      color: var(--text-primary);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .chip {
+      border-radius: 6px;
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      background: radial-gradient(circle at top, rgba(15, 23, 42, 0.96), rgba(3, 7, 18, 0.95));
+      padding: 7px 10px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: rgba(209, 213, 219, 0.9);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chip span.key {
+      opacity: 0.7;
+    }
+
+    .chip span.value {
+      color: var(--dna-green);
+    }
+
+    .act-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .act-label span.dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--bio-cyan);
+      box-shadow:
+        0 0 8px rgba(0, 212, 255, 0.7),
+        0 0 16px rgba(0, 212, 255, 0.6);
+    }
+
+    .act-timeline {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .act-pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(30, 64, 175, 0.9);
+      background: linear-gradient(
+        135deg,
+        rgba(30, 64, 175, 0.95),
+        rgba(15, 23, 42, 0.98)
+      );
+      color: rgba(226, 232, 240, 0.96);
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 1),
+        0 0 28px rgba(30, 64, 175, 0.85);
+    }
+
+    .act-stepper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .act-step {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      position: relative;
+      opacity: 0.6;
+    }
+
+    .act-step::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border-radius: inherit;
+      background: rgba(148, 163, 184, 0.45);
+    }
+
+    .act-step.active {
+      border-color: var(--quantum-magenta);
+      opacity: 1;
+    }
+
+    .act-step.active::after {
+      background: radial-gradient(circle, var(--quantum-magenta), transparent);
+      box-shadow:
+        0 0 10px rgba(255, 0, 110, 0.85),
+        0 0 20px rgba(255, 0, 110, 0.7);
+    }
+
+    .act-stepbar {
+      flex: 0 0 56px;
+      height: 2px;
+      border-radius: 999px;
+      background: linear-gradient(
+        90deg,
+        rgba(31, 41, 55, 0.6),
+        rgba(55, 65, 81, 0.9),
+        rgba(31, 41, 55, 0.6)
+      );
+    }
+
+    .right-meta {
+      flex: 0 0 240px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      min-width: 0;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      width: 100%;
+    }
+
+    .stat-card {
+      border-radius: 10px;
+      border: 1px solid rgba(15, 23, 42, 0.9);
+      background: radial-gradient(circle at top, rgba(15, 23, 42, 0.98), rgba(3, 7, 18, 0.99));
+      padding: 10px 12px 11px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        120deg,
+        transparent 0%,
+        rgba(148, 163, 184, 0.16) 30%,
+        transparent 100%
+      );
+      opacity: 0.7;
+      mix-blend-mode: soft-light;
+      pointer-events: none;
+    }
+
+    .stat-label {
+      font-size: 8px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 22px;
+      letter-spacing: 0.16em;
+      color: var(--dna-green);
+      text-shadow:
+        0 0 18px rgba(0, 255, 136, 0.8),
+        0 0 36px rgba(0, 255, 136, 0.6);
+    }
+
+    .stat-tag {
+      margin-top: 4px;
+      font-size: 8px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(148, 163, 184, 0.8);
+    }
+
+    .logo-lockup {
+      text-align: right;
+    }
+
+    .logo-main {
+      font-family: var(--font-display);
+      font-size: 34px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--text-primary);
+    }
+
+    .logo-main span {
+      color: var(--dna-green);
+      text-shadow:
+        0 0 24px rgba(0, 255, 136, 0.9),
+        0 0 40px rgba(0, 255, 136, 0.6);
+    }
+
+    .logo-sub {
+      margin-top: 4px;
+      font-size: 8px;
+      letter-spacing: 0.26em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .controls {
+      position: fixed;
+      right: min(4vw, 56px);
+      bottom: min(7vh, 56px);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 7;
+    }
+
+    .btn-ghost {
+      pointer-events: auto;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      background: radial-gradient(circle at top, rgba(15, 23, 42, 0.96), rgba(3, 7, 18, 0.97));
+      color: rgba(249, 250, 251, 0.8);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0.78;
+      transition:
+        opacity 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+    }
+
+    .btn-ghost:hover {
+      opacity: 1;
+      transform: translateY(-1px);
+      box-shadow: 0 0 18px rgba(148, 163, 184, 0.6);
+      border-color: rgba(209, 213, 219, 0.9);
+    }
+
+    .btn-ghost span.key {
+      opacity: 0.7;
+      font-size: 8px;
+      letter-spacing: 0.26em;
+    }
+
+    .btn-primary {
+      pointer-events: auto;
+      padding: 11px 24px;
+      border-radius: 0;
+      border: none;
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+      background: linear-gradient(
+        100deg,
+        var(--quantum-magenta) 0%,
+        #9b00ff 32%,
+        var(--bio-cyan) 66%,
+        var(--dna-green) 100%
+      );
+      background-size: 220% 100%;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow:
+        0 0 18px rgba(255, 0, 110, 0.75),
+        0 0 36px rgba(0, 212, 255, 0.7);
+      animation: ignitePulse 2.6s ease-in-out infinite;
+    }
+
+    .btn-primary span.glyph {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 0 26px rgba(255, 0, 110, 0.9),
+        0 0 52px rgba(0, 212, 255, 0.8);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .fade-out {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+      transition: opacity 1s ease;
+    }
+
+    .fade-out.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .cold-boot-terminal {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.7;
+      color: rgba(148, 163, 184, 0.95);
+      background: rgba(2, 6, 23, 0.9);
+      border-radius: 10px;
+      border: 1px solid rgba(30, 64, 175, 0.9);
+      padding: 14px 14px 14px 18px;
+      width: min(520px, 90vw);
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 1),
+        0 20px 40px rgba(15, 23, 42, 0.9);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .cold-boot-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(156, 163, 175, 0.9);
+    }
+
+    .cold-boot-dots {
+      display: inline-flex;
+      gap: 5px;
+    }
+
+    .cold-boot-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(51, 65, 85, 0.95);
+    }
+
+    .cold-boot-body {
+      border-top: 1px solid rgba(30, 64, 175, 0.8);
+      padding-top: 8px;
+      max-height: 220px;
+      overflow: hidden;
+    }
+
+    .cold-line {
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    .cold-line.visible {
+      opacity: 1;
+      transform: translateY(0);
+      transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+    }
+
+    .cold-prompt {
+      color: #4ade80;
+    }
+
+    .cold-module {
+      color: #38bdf8;
+    }
+
+    .cold-ok {
+      color: #22c55e;
+    }
+
+    .cold-meta {
+      color: #a855f7;
+    }
+
+    .glitch {
+      position: relative;
+    }
+
+    .glitch::before,
+    .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      mix-blend-mode: screen;
+      opacity: 0;
+      clip-path: inset(0 0 0 0);
+    }
+
+    .glitch::before {
+      color: var(--quantum-magenta);
+      transform: translate(-2px, 0);
+    }
+
+    .glitch::after {
+      color: var(--bio-cyan);
+      transform: translate(2px, 0);
+    }
+
+    .glitch.glitching::before,
+    .glitch.glitching::after {
+      animation: glitchSlices 0.26s steps(2, end) forwards;
+    }
+
+    @keyframes heartbeat {
+      0%,
+      100% {
+        transform: scale(1);
+      }
+      14% {
+        transform: scale(1.3);
+      }
+      28% {
+        transform: scale(1);
+      }
+      42% {
+        transform: scale(1.24);
+      }
+    }
+
+    @keyframes ignitePulse {
+      0%,
+      100% {
+        box-shadow:
+          0 0 18px rgba(255, 0, 110, 0.7),
+          0 0 40px rgba(155, 0, 255, 0.4);
+        background-position: 0% 50%;
+      }
+      50% {
+        box-shadow:
+          0 0 30px rgba(255, 0, 110, 0.95),
+          0 0 64px rgba(0, 212, 255, 0.75);
+        background-position: 100% 50%;
+      }
+    }
+
+    @keyframes borderTrace {
+      0% {
+        background-position: 0% 0%;
+      }
+      100% {
+        background-position: 200% 0%;
+      }
+    }
+
+    @keyframes glitchSlices {
+      0% {
+        opacity: 0;
+        clip-path: inset(0 0 0 0);
+      }
+      20% {
+        opacity: 1;
+        clip-path: inset(8% 0 50% 0);
+      }
+      40% {
+        clip-path: inset(60% 0 18% 0);
+      }
+      60% {
+        clip-path: inset(30% 0 40% 0);
+      }
+      80% {
+        clip-path: inset(70% 0 10% 0);
+      }
+      100% {
+        opacity: 0;
+        clip-path: inset(0 0 0 0);
+      }
+    }
+
+    @media (max-width: 780px) {
+      .hud {
+        padding: 20px 16px 18px 16px;
+      }
+
+      .hud-bottom {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .right-meta {
+        align-items: flex-start;
+      }
+
+      .logo-lockup {
+        text-align: left;
+      }
+
+      .controls {
+        left: 16px;
+        right: 16px;
+        justify-content: space-between;
+      }
+
+      .cold-boot-terminal {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div class="vignette"></div>
+  <div class="scanline"></div>
+  <div class="grain"></div>
+
+  <div class="hud">
+    <div class="hud-top">
+      <div>
+        <div class="hud-tagline">
+          <span class="line"></span>
+          <span>META-OPTIMIZATION WORKSPACE</span>
+        </div>
+        <div id="hud-scene" class="hud-scene-label">
+          ACT 0 · COLD BOOT
+        </div>
+        <div class="hud-progress-shell">
+          <div class="hud-progress-track"></div>
+          <div id="progress-bar" class="hud-progress-fill"></div>
+        </div>
+      </div>
+      <div class="hud-top-right">
+        <div class="hud-pill">
+          <span class="hud-pill-dot"></span>
+          <span>SESSION</span>
+          <span>MT-PRIME</span>
+        </div>
+        <div style="opacity: 0.7;">AUTONOMOUS HYPERPARAMETER ENGINE</div>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="scene-stack">
+        <section id="scene-0" class="scene active">
+          <div class="scene-heading-kicker">
+            <span class="badge">ACT 0</span>
+            BOOT SEQUENCE
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start;">
+            <div class="cold-boot-terminal">
+              <div class="cold-boot-header">
+                <span>META-TUNE · DIAGNOSTIC SHELL</span>
+                <span class="cold-boot-dots">
+                  <span></span><span></span><span></span>
+                </span>
+              </div>
+              <div class="cold-boot-body" id="cold-body">
+                <div class="cold-line">
+                  <span class="cold-prompt">mt@workspace</span>:~$ boot --cold --session PRIME
+                </div>
+                <div class="cold-line">
+                  &gt; initializing <span class="cold-module">dataset_analyzer</span> ... <span class="cold-ok">ok</span>
+                </div>
+                <div class="cold-line">
+                  &gt; initializing <span class="cold-module">advanced_metanet.brain</span> ... <span class="cold-ok">ok</span>
+                </div>
+                <div class="cold-line">
+                  &gt; initializing <span class="cold-module">bilevel_evolution_engine</span> ... <span class="cold-ok">ok</span>
+                </div>
+                <div class="cold-line">
+                  &gt; binding <span class="cold-module">wandb.visual_layer</span> ... <span class="cold-ok">ok</span>
+                </div>
+                <div class="cold-line">
+                  &gt; loading <span class="cold-meta">meta_prior / human_runs ∼ 2.1e6</span> ... <span class="cold-ok">ok</span>
+                </div>
+                <div class="cold-line">
+                  &gt; routing <span class="cold-module">/data/&lt;your_dataset.csv&gt;</span> → MetaTune
+                </div>
+                <div class="cold-line">
+                  READY · &gt;_  waiting for dataset drop...
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="scene-1" class="scene">
+          <div class="scene-heading-kicker">
+            <span class="badge">ACT 1</span>
+            THE PROBLEM
+          </div>
+          <h1
+            class="scene-title glitch"
+            data-text="MILLIONS OF HOURS WASTED GUESSING."
+          >
+            MILLIONS OF HOURS
+            <br />
+            <span class="danger">WASTED GUESSING.</span>
+          </h1>
+          <div class="scene-body">
+            Every ML team you know is still doing it the old way:
+            trial‑and‑error grid searches, copy‑pasted configs, and hyperparameters tuned by
+            “vibes”.
+            <br /><br />
+            <strong>MetaTune</strong> exists for one reason:
+            to turn that chaos into a repeatable, programmable optimization pipeline that
+            learns from every dataset it touches.
+          </div>
+          <div class="act-label">
+            <span class="dot"></span>
+            PROBLEM STATEMENT · HUMAN TIME SINK
+          </div>
+          <div class="grid">
+            <div class="chip">
+              <span class="key">SEARCH BUDGET</span>
+              <span class="value">10³‑10⁵ TRIALS</span>
+            </div>
+            <div class="chip">
+              <span class="key">ENGINEER HOURS</span>
+              <span class="value">&gt; 2M / YEAR</span>
+            </div>
+            <div class="chip">
+              <span class="key">REPEATABILITY</span>
+              <span class="value">LOW</span>
+            </div>
+            <div class="chip">
+              <span class="key">PRIOR KNOWLEDGE</span>
+              <span class="value">LOST</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="scene-2" class="scene">
+          <div class="scene-heading-kicker">
+            <span class="badge">ACT 2</span>
+            PHASE 01 · DATASET DNA
+          </div>
+          <h1 class="scene-title">
+            WE READ YOUR
+            <span class="accent">DATASET DNA.</span>
+          </h1>
+          <div class="scene-body">
+            Before MetaTune touches a single hyperparameter, it runs your dataset through
+            a forensic scan: <strong>17 meta‑features</strong> that quantify the shape,
+            balance, entropy, and brittleness of your problem.
+            <br /><br />
+            This is your dataset’s genome —
+            the signal that drives every downstream decision.
+          </div>
+          <div class="act-label">
+            <span class="dot"></span>
+            PHASE 01 · GENOME SEQUENCING
+          </div>
+          <div class="grid">
+            <div class="chip">
+              <span class="key">TARGET ENTROPY</span>
+              <span class="value">H(y)</span>
+            </div>
+            <div class="chip">
+              <span class="key">CLASS IMBALANCE</span>
+              <span class="value">ρ</span>
+            </div>
+            <div class="chip">
+              <span class="key">SPARSITY</span>
+              <span class="value">σ</span>
+            </div>
+            <div class="chip">
+              <span class="key">DIMENSIONALITY</span>
+              <span class="value">d / n</span>
+            </div>
+            <div class="chip">
+              <span class="key">TASK TYPE</span>
+              <span class="value">CLS / REG</span>
+            </div>
+            <div class="chip">
+              <span class="key">DIFFICULTY INDEX</span>
+              <span class="value">Ω</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="scene-3" class="scene">
+          <div class="scene-heading-kicker">
+            <span class="badge">ACT 3</span>
+            PHASE 02 · NEURAL BRAIN PRESCRIPTION
+          </div>
+          <h1 class="scene-title">
+            A NEURAL
+            <span class="accent">BRAIN</span>
+            DECIDES WHAT TO TRY.
+          </h1>
+          <div class="scene-body">
+            The Dataset DNA feeds into an internal meta‑network —
+            the <strong>MetaTune brain</strong>. Trained across thousands of prior runs,
+            it learns how DNA patterns map to architectures, optimizers, and learning‑rate
+            schedules that actually work.
+            <br /><br />
+            The output is not a random grid.
+            It’s a <strong>prescription</strong>.
+          </div>
+          <div class="act-label">
+            <span class="dot" style="background: var(--neural-amber); box-shadow: 0 0 10px rgba(255,184,0,0.8);"></span>
+            PHASE 02 · META‑BRAIN INFERENCE
+          </div>
+          <div class="grid">
+            <div class="chip">
+              <span class="key">OPTIMIZER</span>
+              <span class="value">ADAM / LAMB / SGD</span>
+            </div>
+            <div class="chip">
+              <span class="key">LR BAND</span>
+              <span class="value">[1e‑5, 1e‑1]</span>
+            </div>
+            <div class="chip">
+              <span class="key">REGIME</span>
+              <span class="value">SMALL / LARGE / TABULAR</span>
+            </div>
+            <div class="chip">
+              <span class="key">MODEL FAMILY</span>
+              <span class="value">TREE / LINEAR / NN</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="scene-4" class="scene">
+          <div class="scene-heading-kicker">
+            <span class="badge">ACT 4</span>
+            PHASE 03 · BILEVEL EVOLUTION ENGINE
+          </div>
+          <h1 class="scene-title">
+            A BILEVEL
+            <span class="accent">EVOLUTION ENGINE</span>
+            DOES THE BRUTAL WORK.
+          </h1>
+          <div class="scene-body">
+            Under the hood, MetaTune is running a bilevel optimization loop:
+            an outer search over hyperparameters, and an inner loop over model training.
+            <br /><br />
+            The engine adjusts regularization, learning rate, and architecture on the fly,
+            guided by validation curvature —
+            <strong>not</strong> guesswork.
+          </div>
+          <div class="act-label">
+            <span class="dot" style="background: var(--evolution-purple); box-shadow: 0 0 10px rgba(155,93,229,0.85);"></span>
+            PHASE 03 · INITIALIZE → TUNE → USE_BEST
+          </div>
+          <div class="grid">
+            <div class="chip">
+              <span class="key">INITIALIZE</span>
+              <span class="value">PRIOR‑AWARE</span>
+            </div>
+            <div class="chip">
+              <span class="key">TUNE</span>
+              <span class="value">BILEVEL LOOP</span>
+            </div>
+            <div class="chip">
+              <span class="key">MONITOR</span>
+              <span class="value">ADAPTIVE</span>
+            </div>
+            <div class="chip">
+              <span class="key">USE_BEST</span>
+              <span class="value">PACKAGED</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="scene-5" class="scene">
+          <div class="scene-heading-kicker">
+            <span class="badge">ACT 5</span>
+            THE REVEAL · METATUNE
+          </div>
+          <h1 class="scene-title">
+            WELCOME TO
+            <span class="accent">METATUNE.</span>
+          </h1>
+          <div class="scene-body">
+            You’re not launching another toy dashboard.
+            You’re stepping into a <strong>cinematic workspace</strong> for bilevel
+            optimization: Dataset DNA on the left, Neural Brain prescriptions in the
+            middle, Evolution Engine live‑telemetry on the right.
+            <br /><br />
+            Press <strong>ENTER WORKSPACE</strong> to drop your dataset and let MetaTune
+            take the first shot for you.
+          </div>
+        </section>
+      </div>
+
+      <aside class="right-meta">
+        <div class="act-label" style="justify-content: flex-end;">
+          <span class="dot"></span>
+          <span>SEQUENCE</span>
+        </div>
+        <div class="act-timeline">
+          <div class="act-pill">AUTO‑ADVANCING</div>
+          <div class="act-stepper">
+            <div class="act-step active" data-step="0"></div>
+            <div class="act-step" data-step="1"></div>
+            <div class="act-step" data-step="2"></div>
+            <div class="act-step" data-step="3"></div>
+            <div class="act-step" data-step="4"></div>
+            <div class="act-step" data-step="5"></div>
+          </div>
+          <div class="act-stepbar"></div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">PRIOR RUNS SEEN</div>
+            <div class="stat-value">2.1M</div>
+            <div class="stat-tag">META‑KNOWLEDGE BASE</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">DNA FEATURES</div>
+            <div class="stat-value">17</div>
+            <div class="stat-tag">DATASET GENOME</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SEARCH SPEEDUP</div>
+            <div class="stat-value">×35</div>
+            <div class="stat-tag">VS NAIVE TUNING</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">HUMAN HOURS SAVED</div>
+            <div class="stat-value">∞</div>
+            <div class="stat-tag">IF YOU LET IT</div>
+          </div>
+        </div>
+
+        <div class="logo-lockup">
+          <div class="logo-main">
+            META<span>TUNE</span>
+          </div>
+          <div class="logo-sub">
+            BILEVEL OPTIMIZATION WORKSPACE
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="fade-out" class="fade-out"></div>
+
+  <div class="controls">
+    <button class="btn-primary" type="button" onclick="enterApp()">
+      <span>ENTER WORKSPACE</span>
+      <span class="glyph">⌬</span>
+    </button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    let W = 0;
+    let H = 0;
+
+    // Fix canvas size inside Streamlit iframe — fill entire viewport (no margins)
+    function getViewportSize() {
+      let vw;
+      let vh;
+      try {
+        vw = window.parent.innerWidth || window.innerWidth;
+        vh = window.parent.innerHeight || window.innerHeight;
+      } catch (e) {
+        vw = window.innerWidth;
+        vh = window.innerHeight;
+      }
+
+      canvas.width = vw;
+      canvas.height = vh;
+      W = vw;
+      H = vh;
+    }
+    getViewportSize();
+    window.addEventListener('resize', getViewportSize);
+
+    class Particle {
+      constructor() {
+        this.reset(true);
+      }
+      reset(init = false) {
+        this.x = Math.random() * W;
+        this.y = Math.random() * H;
+        this.z = 0.2 + Math.random() * 0.8;
+        this.vx = -0.15 - Math.random() * 0.4;
+        this.vy = (Math.random() - 0.5) * 0.15;
+        this.size = this.z * 1.4;
+        this.alpha = init ? 0 : 0.2 + Math.random() * 0.6;
+      }
+      step() {
+        this.x += this.vx * (0.5 + this.z);
+        this.y += this.vy * (0.5 + this.z);
+        if (this.x < -40 || this.y < -40 || this.y > H + 40) {
+          this.reset();
+          this.x = W + 20;
+          this.y = Math.random() * H;
+        }
+      }
+      draw(ctx) {
+        const g = ctx.createRadialGradient(
+          this.x,
+          this.y,
+          0,
+          this.x,
+          this.y,
+          30 * this.z
+        );
+        g.addColorStop(0, `rgba(0, 212, 255, ${0.55 * this.alpha})`);
+        g.addColorStop(0.4, `rgba(0, 255, 136, ${0.32 * this.alpha})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 30 * this.z, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    const particles = Array.from({ length: 90 }, () => new Particle());
+    let frameId;
+
+    function animate() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, W, H);
+      particles.forEach((p) => {
+        p.step();
+        p.draw(ctx);
+      });
+      frameId = requestAnimationFrame(animate);
+    }
+    animate();
+
+    const scenes = [
+      { id: 'scene-0', name: 'ACT 0 · COLD BOOT', dur: 2.8 },
+      { id: 'scene-1', name: 'ACT 1 · THE PROBLEM', dur: 4.5 },
+      { id: 'scene-2', name: 'ACT 2 · DATASET DNA', dur: 5.0 },
+      { id: 'scene-3', name: 'ACT 3 · NEURAL PRESCRIPTION', dur: 5.2 },
+      { id: 'scene-4', name: 'ACT 4 · BILEVEL EVOLUTION', dur: 5.2 },
+      { id: 'scene-5', name: 'ACT 5 · METATUNE', dur: Infinity },
+    ];
+
+    let currentScene = 0;
+    let started = false;
+    let progress = 0;
+    const progressBar = document.getElementById('progress-bar');
+    const hudScene = document.getElementById('hud-scene');
+    const steps = Array.from(document.querySelectorAll('.act-step'));
+    const fadeOut = document.getElementById('fade-out');
+    const coldLines = Array.from(document.querySelectorAll('.cold-line'));
+    let coldIndex = 0;
+
+    function showScene(index) {
+      scenes.forEach((s, i) => {
+        const el = document.getElementById(s.id);
+        if (!el) return;
+        if (i === index) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      });
+
+      steps.forEach((stepEl) => {
+        const stepIndex = Number(stepEl.getAttribute('data-step'));
+        stepEl.classList.toggle('active', stepIndex === index);
+      });
+
+      const meta = scenes[index];
+      hudScene.textContent = meta.name;
+
+      const title = document.querySelector(`#${meta.id} .glitch`);
+      if (title) {
+        title.classList.remove('glitching');
+        void title.offsetWidth;
+        title.classList.add('glitching');
+      }
+    }
+
+    function startColdBoot() {
+      const interval = setInterval(() => {
+        if (coldIndex >= coldLines.length) {
+          clearInterval(interval);
+          return;
+        }
+        coldLines[coldIndex].classList.add('visible');
+        coldIndex += 1;
+      }, 160);
+    }
+
+    function startTimeline() {
+      if (started) return;
+      started = true;
+      showScene(0);
+      startColdBoot();
+
+      const totalFinite = scenes
+        .map((s) => s.dur)
+        .filter((d) => Number.isFinite(d))
+        .reduce((a, b) => a + b, 0);
+
+      let elapsed = 0;
+      let lastTs = performance.now();
+
+      function tick(ts) {
+        const dt = (ts - lastTs) / 1000;
+        lastTs = ts;
+        const current = scenes[currentScene];
+
+        if (Number.isFinite(current.dur)) {
+          elapsed += dt;
+          if (elapsed >= current.dur) {
+            elapsed = 0;
+            if (currentScene < scenes.length - 1) {
+              currentScene += 1;
+              showScene(currentScene);
+            }
+          }
+        }
+
+        const activeFiniteIndex = Math.min(currentScene, scenes.length - 2);
+        const sumBefore = scenes
+          .slice(0, activeFiniteIndex)
+          .map((s) => s.dur)
+          .filter((d) => Number.isFinite(d))
+          .reduce((a, b) => a + b, 0);
+        const currentDur = scenes[activeFiniteIndex].dur;
+        const span = Number.isFinite(currentDur) && totalFinite > 0 ? currentDur / totalFinite : 0;
+        const base = totalFinite > 0 ? sumBefore / totalFinite : 0;
+        const local = Number.isFinite(currentDur) && currentDur > 0 ? Math.min(elapsed / currentDur, 1) : 1;
+        progress = Math.min(1, base + span * local);
+
+        progressBar.style.width = `${Math.min(100, progress * 100)}%`;
+        requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    window.addEventListener(
+      'click',
+      () => {
+        startTimeline();
+      },
+      { once: true }
+    );
+
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          startTimeline();
+        }
+      },
+      { once: true }
+    );
+
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        startTimeline();
+      }, 500);
+    });
+
+    function enterApp() {
+      const fd = document.getElementById('fade-out');
+      fd.classList.add('active');
+      progressBar.style.width = '100%';
+      setTimeout(() => {
+        // Navigate parent window to same URL with intro completion param
+        try {
+          const parentLoc = window.parent.location || window.location;
+          const base = parentLoc.href.split('?')[0];
+          parentLoc.href = base + '?intro=done';
+        } catch (e) {
+          const base = window.location.href.split('?')[0];
+          window.location.href = base + '?intro=done';
+        }
+      }, 1200);
+    }
+  </script>
+</body>
+</html>
+

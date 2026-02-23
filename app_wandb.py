@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import streamlit.components.v1 as components
 import plotly.express as px
 import time
 import os
@@ -16,6 +17,57 @@ from sklearn_engine import train_and_package, package_to_joblib_bytes
 
 # === UI CONFIGURATION ===
 st.set_page_config(page_title="MetaTune Workspace", page_icon="⚡", layout="wide")
+
+# === CINEMATIC INTRO GATE (Simple Version) ===
+import os
+
+if 'intro_done' not in st.session_state:
+    st.session_state['intro_done'] = False
+
+if not st.session_state['intro_done']:
+    # Hide Streamlit chrome and make iframe fullscreen
+    st.markdown("""
+    <style>
+    #MainMenu, footer, header,
+    [data-testid="stSidebar"],
+    [data-testid="stToolbar"] { display: none !important; }
+    .main .block-container { padding: 0 !important; max-width: 100vw !important; margin: 0 !important; }
+    iframe {
+      width: 100vw !important;
+      height: 100vh !important;
+      position: fixed !important;
+      top: 0 !important; left: 0 !important;
+      z-index: 9999 !important;
+      border: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    intro_path = os.path.join(os.path.dirname(__file__), 'intro.html')
+    if os.path.exists(intro_path):
+        with open(intro_path, 'r', encoding='utf-8') as f:
+            intro_html = f.read()
+        components.html(intro_html, height=800, scrolling=False)
+
+    # Check if user completed intro via URL param
+    params = st.query_params
+    if params.get('intro') == 'done':
+        st.session_state['intro_done'] = True
+        # Clean URL param
+        st.query_params.clear()
+        st.rerun()
+
+    # Optional fallback skip button in case of issues
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([2,1,2])
+    with col2:
+        if st.button("SKIP INTRO", key="skip_intro_btn"):
+            st.session_state['intro_done'] = True
+            st.rerun()
+
+    st.stop()
+
+# === REST OF APP RENDERS BELOW (unchanged) ===
 
 # Custom CSS for WandB Aesthetic
 st.markdown("""
