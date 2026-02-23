@@ -15,6 +15,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 
+try:
+    from xgboost import XGBClassifier, XGBRegressor
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+
+
 
 def _build_preprocessor(X_train_raw: pd.DataFrame) -> ColumnTransformer:
     num_cols = X_train_raw.select_dtypes(include=[np.number]).columns
@@ -86,6 +93,12 @@ def build_estimator(algorithm_id: str, task_type: str, hyperparameters: Optional
             return GradientBoostingClassifier(learning_rate=lr, random_state=42)
         if algorithm_id == "rf":
             return RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1)
+        if algorithm_id == "xgboost":
+            if not XGBOOST_AVAILABLE:
+                print("⚠️  XGBoost not installed. Falling back to GradientBoosting.")
+                return GradientBoostingClassifier(learning_rate=lr, random_state=42)
+            return XGBClassifier(learning_rate=lr, random_state=42, 
+                                 eval_metric='logloss', verbosity=0)
     else:
         if algorithm_id == "ridge":
             return Ridge(alpha=alpha)
@@ -93,6 +106,11 @@ def build_estimator(algorithm_id: str, task_type: str, hyperparameters: Optional
             return GradientBoostingRegressor(learning_rate=lr, random_state=42)
         if algorithm_id == "rf_reg":
             return RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1)
+        if algorithm_id == "xgboost_reg":
+            if not XGBOOST_AVAILABLE:
+                print("⚠️  XGBoost not installed. Falling back to GradientBoosting.")
+                return GradientBoostingRegressor(learning_rate=lr, random_state=42)
+            return XGBRegressor(learning_rate=lr, random_state=42, verbosity=0)
 
     raise ValueError(f"Unsupported algorithm_id='{algorithm_id}' for task_type='{task_type}'")
 
