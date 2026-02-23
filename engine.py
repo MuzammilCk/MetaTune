@@ -49,6 +49,11 @@ class DynamicTrainer:
         X_train_raw, X_val_raw, y_train_raw, y_val_raw = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
+        
+        # Protect Regression NaN targets
+        if self.dna['task_type'] == 'regression':
+            y_train_raw = y_train_raw.fillna(y_train_raw.median())
+            y_val_raw = y_val_raw.fillna(y_train_raw.median())
 
         # 3. Define Preprocessing Pipeline
         # Identify numeric and categorical columns
@@ -212,5 +217,9 @@ class DynamicTrainer:
             "status": "Optimization Complete",
             "final_metric": metric,
             "metric_name": metric_name,
-            "training_time": time.time() - start_time
+            "training_time": time.time() - start_time,
+            "train_loss_history": self.train_loss_history,
+            "val_loss_history": self.val_loss_history,
+            "total_epochs": len(self.train_loss_history),
+            "best_epoch": int(np.argmin(self.val_loss_history)) if self.val_loss_history else 0
         }

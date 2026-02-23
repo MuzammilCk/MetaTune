@@ -34,10 +34,10 @@ class AdaptiveTrainingMonitor:
         self.val_loss_buffer.append(val_loss)
         self.gradient_norm_buffer.append(gradient_norm)
     
-    def detect_plateau(self, threshold=0.001):
+    def detect_plateau(self, threshold=0.01):
         if len(self.train_loss_buffer) < self.window_size: return False
         loss_change = abs(self.train_loss_buffer[-1] - self.train_loss_buffer[0])
-        is_plateau = loss_change < threshold
+        is_plateau = loss_change / (abs(self.train_loss_buffer[0]) + 1e-9) < threshold
         if is_plateau: self.plateau_count += 1
         else: self.plateau_count = 0
         return self.plateau_count >= 2
@@ -125,6 +125,9 @@ class DynamicTrainer:
             self.criterion = nn.CrossEntropyLoss()
         else:
             # FIX: Scale Target Variable to prevent Gradient Explosion
+            if self.dna['task_type'] == 'regression':
+                y_train_raw = y_train_raw.fillna(y_train_raw.median())
+                y_val_raw = y_val_raw.fillna(y_train_raw.median())
             self.y_scaler = StandardScaler()
             y_train = self.y_scaler.fit_transform(y_train_raw.values.reshape(-1, 1))
             y_val = self.y_scaler.transform(y_val_raw.values.reshape(-1, 1))
@@ -270,5 +273,9 @@ class DynamicTrainer:
                 "current_l2": self.current_wd, # Mapped to Yellow Graph
                 "current_lr": self.current_lr,
                 "grad_norm": grad_norm,
-                "adaptation": adaptation_msg
+                "adaptation": adaptation_msg,
+                "train_loss_history": list(self.monitor.train_loss_buffer),
+                "val_loss_history": list(self.monitor.val_loss_buffer),
+                "total_epochs": epoch + 1,
+                "best_epoch": int(np.argmin(self.monitor.val_loss_buffer)) if self.monitor.val_loss_buffer else 0
             }

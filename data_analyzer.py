@@ -101,14 +101,24 @@ class DatasetAnalyzer:
             for key in ['mean_skewness', 'max_skewness', 'mean_kurtosis', 
                        'avg_correlation', 'max_correlation', 'coefficient_variation']:
                 self.meta_features[key] = 0.0
+            print("⚠️  Warning: No numerical features detected. Skewness/correlation metrics \ndefault to 0.0. Brain predictions may be less accurate.")
 
         # === CATEGORICAL COMPLEXITY ===
         if len(cat_cols) > 0:
             self.meta_features['avg_cardinality'] = features[cat_cols].nunique().mean()
             self.meta_features['max_cardinality'] = features[cat_cols].nunique().max()
+            high_card_count = (features[cat_cols].nunique() > 50).sum()
         else:
             self.meta_features['avg_cardinality'] = 0.0
             self.meta_features['max_cardinality'] = 0.0
+            high_card_count = 0
+            
+        self.meta_features["high_cardinality_flag"] = 1.0 if self.meta_features['max_cardinality'] > 50 else 0.0
+        self.meta_features["high_cardinality_feature_count"] = int(high_card_count)
+
+        if self.meta_features["high_cardinality_flag"] == 1.0:
+            n = self.meta_features["high_cardinality_feature_count"]
+            print(f"⚠️  Warning: {n} categorical feature(s) have cardinality > 50. \nConsider target encoding. OneHotEncoder may cause memory issues.")
 
         # === TARGET DIFFICULTY (Task Profiling) - ROBUST FIX ===
         n_unique_target = target.nunique()
@@ -161,6 +171,26 @@ class DatasetAnalyzer:
                 self.meta_features['target_skewness'] = skew(target.dropna())
                 self.meta_features['target_cv'] = target.std() / (abs(target.mean()) + 1e-9)
 
+        if self.meta_features.get('task_type') == 'classification':
+            score = self.meta_features['normalized_entropy'] + min(self.meta_features['class_imbalance_ratio']/10.0, 1.0) + self.meta_features['sparsity']
+        else:
+            score = min(self.meta_features.get('target_cv', 0.0)/10.0, 1.0) + self.meta_features['sparsity']
+        
+        self.meta_features["task_difficulty_score"] = float(np.clip(score, 0.0, 3.0))
+
+        hint = {"lr": [1e-3, 1e-1], "max_epochs": [20, 100], "batch_size": [16, 128]}
+        if self.meta_features['n_instances'] < 5000:
+            hint["max_epochs"] = [10, 50]
+            hint["lr"] = [1e-4, 1e-2]
+        if self.meta_features['sparsity'] > 0.5:
+            hint["weight_decay_l2"] = [1e-4, 1e-1]
+        if self.meta_features.get("high_cardinality_flag", 0.0) == 1.0:
+            hint["embedding_dim"] = [8, 64]
+        if self.meta_features.get('task_type') == "regression":
+            hint["dropout"] = [0.0, 0.3]
+            
+        self.meta_features["vizier_search_space_hint"] = str(hint)
+
         return self.meta_features
 
     def print_summary(self):
@@ -178,6 +208,7 @@ class DatasetAnalyzer:
         _print_row("Features", self.meta_features['n_features'])
         print("\nComplexity Metrics:")
         _print_row("Task Type", self.meta_features.get('task_type', 'Unknown'))
+        _print_row("Task Difficulty", self.meta_features.get('task_difficulty_score', 0))
         _print_row("Target Entropy", self.meta_features.get('target_entropy', 0))
         _print_row("Mean Skewness", self.meta_features.get('mean_skewness', 0))
         _print_row("Sparsity/Missing", self.meta_features.get('sparsity', 0))
