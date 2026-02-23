@@ -24,6 +24,7 @@ if 'intro_done' not in st.session_state:
     st.session_state['intro_done'] = False
 
 # ── LAYER 1: catch ?intro=done on every render BEFORE drawing anything ──
+# (Kept as a belt-and-suspenders fallback for direct URL navigation cases)
 _intro_param = st.query_params.get('intro', None)
 if isinstance(_intro_param, list):
     _intro_param = _intro_param[0] if _intro_param else None
@@ -35,6 +36,9 @@ if _intro_param == 'done':
 # ── LAYER 2: session gate + full-viewport chrome removal ──
 if not st.session_state['intro_done']:
 
+    # Hide ALL Streamlit chrome so the intro owns the full viewport.
+    # NOTE: <script> tags are stripped by Streamlit's markdown sanitiser —
+    #       DO NOT put JS here. All communication uses the components API instead.
     st.markdown("""
     <style>
     #MainMenu, footer, header,
@@ -57,37 +61,50 @@ if not st.session_state['intro_done']:
     </style>
     """, unsafe_allow_html=True)
 
-    # ── LAYER 3: postMessage listener in Streamlit parent ──
-    # intro.html fires postMessage({type:'METATUNE_INTRO_COMPLETE'})
-    # this script catches it and navigates to ?intro=done → Streamlit reruns
-    st.markdown("""
-    <script>
-    (function () {
-        if (window.__metatuneListenerAttached) return;
-        window.__metatuneListenerAttached = true;
-        window.addEventListener('message', function (ev) {
-            if (ev.data && ev.data.type === 'METATUNE_INTRO_COMPLETE') {
-                var url = new URL(window.location.href);
-                url.searchParams.set('intro', 'done');
-                window.location.href = url.toString();
-            }
-        }, false);
-    })();
-    </script>
-    """, unsafe_allow_html=True)
+    # ── LAYER 3: render intro.html and CAPTURE its return value ──
+    #
+    # HOW THIS WORKS:
+    #   components.html() creates an iframe that speaks the Streamlit component
+    #   protocol.  When the user clicks "ENTER WORKSPACE", intro.html calls:
+    #
+    #       window.parent.postMessage({
+    #           isStreamlitMessage: true,
+    #           type: 'streamlit:setComponentValue',
+    #           value: 'done',
+    #           dataType: 'json'
+    #       }, '*');
+    #
+    #   Streamlit receives that message, triggers a Python rerun, and
+    #   components.html() returns the string 'done'.
+    #   We check the return value here and flip the session gate.
+    #
+    # WHY THE OLD CODE BROKE:
+    #   The previous version tried to inject a <script> listener via
+    #   st.markdown(..., unsafe_allow_html=True).  Streamlit's markdown
+    #   sanitiser strips <script> tags, so that listener NEVER ran.
+    #   The fade-to-black was therefore permanent — the session state
+    #   was never set, the page never reloaded, darkness forever.
 
-    # ── LAYER 4: render intro.html ──
     _intro_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'intro.html')
     if os.path.exists(_intro_path):
         with open(_intro_path, 'r', encoding='utf-8') as _f:
             _intro_html = _f.read()
-        components.html(_intro_html, height=800, scrolling=False)
+
+        # ★ THE FIX: capture the return value ★
+        _result = components.html(_intro_html, height=800, scrolling=False)
+
+        if _result == 'done':
+            st.session_state['intro_done'] = True
+            st.rerun()
     else:
         st.error("⚠️ intro.html not found — place it next to app_wandb.py and restart.")
 
+    # Gate: nothing below this point renders while the intro is active.
     st.stop()
 
-# === REST OF APP RENDERS BELOW (unchanged) ===
+# =============================================================================
+# REST OF APP (unchanged — renders only after intro is dismissed)
+# =============================================================================
 
 # Custom CSS for WandB Aesthetic
 st.markdown("""
@@ -632,7 +649,6 @@ if uploaded_file:
         study = Study(designer=designer, study_id="meta_tune_session")
         
         # 2. Get Suggestions (Trials)
-        # In a real loop, we might ask for multiple, but here we do 1 for the demo
         trials = study.suggest(count=1)
         active_trial = trials[0]
         params = active_trial.parameters
@@ -746,7 +762,7 @@ if uploaded_file:
 
     col_btn, col_txt = st.columns([1, 4])
     with col_btn:
-        start_btn = st.button("⌬ IGNITE ENGINE")   # ← only label change, same variable name
+        start_btn = st.button("⌬ IGNITE ENGINE")
     with col_txt:
         st.markdown(f"""
         <div style="
@@ -773,18 +789,6 @@ if uploaded_file:
 </div>
 """, unsafe_allow_html=True)
             # ── PRE-TRAINING LAUNCH SEQUENCE ──────────────────────────────────
-            phase_cards_html = ""
-            for i, (em, label) in enumerate([('🧬','DATA PREP'),('🏗️','BUILDING'),('🎯','FITTING'),('📦','PACKAGING')]):
-                bg = '#00FFFF11' if i == 0 else '#ffffff05'
-                border = '#00FFFF' if i == 0 else '#333'
-                color = '#00FFFF' if i == 0 else '#444'
-                anim = 'animation: neuralPulse 2s infinite;' if i == 0 else ''
-                phase_cards_html += f"""
-<div style="background:{bg};border:1px solid {border};border-radius:8px;padding:12px;text-align:center;{anim}">
-    <div style="font-size:20px;margin-bottom:4px;">{em}</div>
-    <div style="color:{color};font-size:10px;letter-spacing:1px;">{label}</div>
-</div>"""
-
             launch_container = st.empty()
             launch_container.markdown(f"""
 <div style="
@@ -796,16 +800,11 @@ if uploaded_file:
   clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
   font-family: var(--font-mono);
 ">
-  <!-- Animated scan line -->
-  <div style="
-    position:absolute; top:0; left:0; right:0; bottom:0;
+  <div style="position:absolute; top:0; left:0; right:0; bottom:0;
     background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
-    animation:scanSweep 2s linear infinite; pointer-events:none;
-  "></div>
+    animation:scanSweep 2s linear infinite; pointer-events:none;"></div>
 
-  <!-- Header row -->
   <div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
-    <!-- Orbital spinner -->
     <div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
       <div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
       <div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
@@ -823,7 +822,6 @@ if uploaded_file:
     </div>
   </div>
 
-  <!-- Phase sequence -->
   <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">
     {''.join([
       f'<div style="background:{"rgba(0,255,136,0.08)" if i==0 else "rgba(255,255,255,0.02)"}; border:1px solid {"var(--dna-green)" if i==0 else "var(--border)"}; padding:14px; text-align:center; {"animation:neuralPulse 2s infinite;" if i==0 else ""}"><div style="font-size:18px; margin-bottom:6px;">{em}</div><div style="color:{"var(--dna-green)" if i==0 else "var(--text-dim)"}; font-size:8px; letter-spacing:2px;">{label}</div></div>'
@@ -831,12 +829,10 @@ if uploaded_file:
     ])}
   </div>
 
-  <!-- Animated progress bar -->
   <div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
     <div style="height:100%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan),var(--dna-green)); background-size:200% 100%; animation:borderTrace 1.5s linear infinite;"></div>
   </div>
 
-  <!-- Terminal readout -->
   <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; color:#00FF41; line-height:2;">
     <div style="animation:matrixFlicker 0.5s infinite;">▶ Initializing preprocessing pipeline...</div>
     <div style="animation:matrixFlicker 0.5s 0.15s infinite; opacity:0.8;">▶ Splitting train/validation (80/20)...</div>
@@ -846,7 +842,7 @@ if uploaded_file:
 </div>
 """, unsafe_allow_html=True)
 
-            # ── ACTUAL TRAINING (runs while animation shows) ───────────────────
+            # ── ACTUAL TRAINING ───────────────────────────────────────────────
             with st.spinner(""):
                 package, training_results = train_and_package(
                     data_path="temp.csv",
@@ -857,7 +853,6 @@ if uploaded_file:
                 )
                 payload = package_to_joblib_bytes(package)
 
-            # ── CLEAR LAUNCH ANIMATION ─────────────────────────────────────────
             launch_container.empty()
 
             if (training_results is not None
@@ -875,64 +870,51 @@ if uploaded_file:
 <div style="
   background:linear-gradient(135deg,var(--void),var(--deep));
   border:1px solid rgba({('0,255,65' if score_pct>=85 else '255,184,0' if score_pct>=70 else '255,0,110')},0.25);
-  padding:40px;
-  margin:16px 0;
-  position:relative;
-  overflow:hidden;
+  padding:40px; margin:16px 0; position:relative; overflow:hidden;
   clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,0 100%);
   animation:slideUpFadeIn 0.6s ease-out;
 ">
-  <!-- Glow backdrop -->
-  <div style="position:absolute;top:-80px;left:50%;width:400px;height:400px;background:radial-gradient(circle,{score_color}0A 0%,transparent 70%);transform:translateX(-50%);pointer-events:none;"></div>
-
-  <!-- Status bar -->
   <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; flex-wrap:wrap; gap:20px;">
     <div>
       <div style="font-family:var(--font-mono);color:{score_color};font-size:9px;letter-spacing:5px;margin-bottom:6px;text-transform:uppercase;">
-        TRAINING COMPLETE · TRIAL #{active_trial.id} · {('SKLEARN' if selected_algorithm_id!='pytorch_mlp' else 'PYTORCH')} ENGINE
+        TRAINING COMPLETE · TRIAL #{active_trial.id} · SKLEARN ENGINE
       </div>
       <div style="font-family:var(--font-display);font-size:36px;letter-spacing:2px;color:var(--text-primary);">{selected_algo_label.upper()}</div>
     </div>
-    <!-- Score ring -->
     <div style="width:88px;height:88px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
       <div style="position:absolute;inset:0;border:2px solid {score_color};border-right-color:transparent;border-radius:50%;animation:orbitalSpin 2s linear infinite;"></div>
-      <div style="position:absolute;inset:10px;border:1px solid rgba({('0,255,65' if score_pct>=85 else '255,184,0' if score_pct>=70 else '255,0,110')},0.3);border-left-color:transparent;border-radius:50%;animation:orbitalSpinReverse 3s linear infinite;"></div>
       <div style="text-align:center;">
-        <div style="font-family:var(--font-display);font-size:20px;color:{score_color};animation:numberRoll 0.5s ease-out;">{score_pct:.1f}%</div>
+        <div style="font-family:var(--font-display);font-size:20px;color:{score_color};">{score_pct:.1f}%</div>
         <div style="font-family:var(--font-mono);font-size:7px;color:var(--text-dim);letter-spacing:1px;">{score_label}</div>
       </div>
     </div>
   </div>
 
-  <!-- 3-column metric grid -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:28px;">
     {''.join([
-      f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
+      f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
       for lb,vl,bc,sl in [
-        (metric_name.upper(),        f'{final_metric:.4f}',    score_color,             'PRIMARY OBJECTIVE'),
-        ('TRAIN TIME',               f'{training_time:.2f}s',  'var(--evolution-purple)','WALL CLOCK'),
-        ('ALGORITHM',                selected_algorithm_id.upper(), 'var(--bio-cyan)',   'DEPLOYABLE ✓'),
+        (metric_name.upper(), f'{final_metric:.4f}', score_color, 'PRIMARY OBJECTIVE'),
+        ('TRAIN TIME', f'{training_time:.2f}s', 'var(--evolution-purple)', 'WALL CLOCK'),
+        ('ALGORITHM', selected_algorithm_id.upper(), 'var(--bio-cyan)', 'DEPLOYABLE ✓'),
       ]
     ])}
   </div>
 
-  <!-- Performance bar -->
   <div style="margin-bottom:24px;">
     <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;">
-      <span>MODEL PERFORMANCE INDEX</span>
-      <span style="color:{score_color};">{score_pct:.1f}%</span>
+      <span>MODEL PERFORMANCE INDEX</span><span style="color:{score_color};">{score_pct:.1f}%</span>
     </div>
     <div style="background:rgba(26,37,64,0.6);height:6px;border-radius:3px;overflow:hidden;">
-      <div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,{score_color},{score_color}AA);border-radius:3px;box-shadow:0 0 12px {score_color}66;transition:width 1s ease-out;"></div>
+      <div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,{score_color},{score_color}AA);border-radius:3px;box-shadow:0 0 12px {score_color}66;"></div>
     </div>
   </div>
 
-  <!-- Hyperparameter readout -->
   <div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);padding:16px;">
     <div style="font-family:var(--font-mono);font-size:8px;letter-spacing:4px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;">HYPERPARAMETER CONFIGURATION — TRIAL #{active_trial.id}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
       {''.join([
-        f'''<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,37,64,0.4);"><span style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;">{str(k).upper()[:14]}</span><span style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:10px;font-weight:700;">{''.join([f'{v:.4f}' if isinstance(v,float) else str(v)])}</span></div>'''
+        f'''<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,37,64,0.4);"><span style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;">{str(k).upper()[:14]}</span><span style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:10px;font-weight:700;">{f'{v:.4f}' if isinstance(v,float) else str(v)}</span></div>'''
         for k,v in list(params.items())[:6]
       ])}
     </div>
@@ -940,7 +922,7 @@ if uploaded_file:
 </div>
 """, unsafe_allow_html=True)
 
-                # ── VIZIER TRIAL TRACKING (keep existing logic) ────────────────
+                # ── VIZIER TRIAL TRACKING ──────────────────────────────────────
                 if 'study' not in st.session_state:
                     from vizier_stub import Study
                     st.session_state['study'] = Study(name="metatune_session")
@@ -959,7 +941,7 @@ if uploaded_file:
                 designer.update(active_trial, study.trials)
                 status_indicator.success(f"Trial #{active_trial.id} Completed")
 
-                # ── BEST RUN PANEL (animated version) ─────────────────────────
+                # ── BEST RUN PANEL ─────────────────────────────────────────────
                 if 'study' in st.session_state:
                     _optimal = st.session_state['study'].optimal_trials()
                     if _optimal:
@@ -967,10 +949,8 @@ if uploaded_file:
                         st.markdown(f"""
     <div style="
       background:linear-gradient(135deg,rgba(0,255,65,0.04),var(--void));
-      border:1px solid rgba(0,255,65,0.2);
-      border-left:4px solid #00FF41;
-      padding:20px 24px;
-      margin-top:16px;
+      border:1px solid rgba(0,255,65,0.2); border-left:4px solid #00FF41;
+      padding:20px 24px; margin-top:16px;
       display:flex; align-items:center; gap:20px;
       clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);
     ">
@@ -995,17 +975,9 @@ if uploaded_file:
 
             else:
                 st.markdown("""
-<div style="
-    background: #1A0A0A; border: 1px solid #FF4B4B44;
-    border-left: 4px solid #FF4B4B; border-radius: 10px; padding: 20px;
-    animation: slideUpFadeIn 0.5s ease-out;
-">
-    <div style="color: #FF4B4B; font-size: 14px; font-weight: bold;">
-        ⚠️ Training did not complete.
-    </div>
-    <div style="color: #888; font-size: 12px; margin-top: 6px;">
-        Check your dataset and hyperparameters.
-    </div>
+<div style="background:#1A0A0A;border:1px solid #FF4B4B44;border-left:4px solid #FF4B4B;border-radius:10px;padding:20px;">
+    <div style="color:#FF4B4B;font-size:14px;font-weight:bold;">⚠️ Training did not complete.</div>
+    <div style="color:#888;font-size:12px;margin-top:6px;">Check your dataset and hyperparameters.</div>
 </div>
                 """, unsafe_allow_html=True)
 
@@ -1028,16 +1000,13 @@ if uploaded_file:
                 
             progress_bar = st.progress(0)
             
-            # Data Buffers
             history = {'epoch': [], 'train_loss': [], 'val_loss': [], 'l2': []}
             
             trainer = DynamicTrainer("temp.csv", dna, params, target_col if target_col else None)
             
-            # === THE TRAINING LOOP ===
             final_metric = 0.0
             start_time = time.time()
             for stats in trainer.run(epochs=30):
-                # Update Data
                 history['epoch'].append(stats['epoch'])
                 history['train_loss'].append(stats['train_loss'])
                 history['val_loss'].append(stats['val_loss'])
@@ -1045,39 +1014,32 @@ if uploaded_file:
                 
                 final_metric = stats['metric']
                 
-                # Show Adaptation Messages
                 if stats.get('adaptation'):
                     st.toast(stats['adaptation'], icon="🧠")
                 
-                # 1. Loss Chart (Multi-line)
                 fig_loss = go.Figure()
                 fig_loss.add_trace(go.Scatter(x=history['epoch'], y=history['train_loss'], 
                                             mode='lines', name='Train', line=dict(color='#00FFFF', width=2)))
                 fig_loss.add_trace(go.Scatter(x=history['epoch'], y=history['val_loss'], 
                                             mode='lines', name='Val', line=dict(color='#FF00FF', width=2)))
                 fig_loss.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(8,11,20,0.8)',
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,11,20,0.8)',
                     font=dict(family='Share Tech Mono', color='#3D4F66', size=10),
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    height=260,
+                    margin=dict(l=10, r=10, t=10, b=10), height=260,
                     xaxis=dict(showgrid=False, title=dict(text='EPOCH', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
                     yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='LOSS', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
                     legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
                 )
                 loss_chart.plotly_chart(fig_loss, use_container_width=True, key=f"loss_{stats['epoch']}")
                 
-                # 2. Adaptation Chart (Proving Bilevel Opt)
                 fig_reg = go.Figure()
                 fig_reg.add_trace(go.Scatter(x=history['epoch'], y=history['l2'], 
                                            mode='lines+markers', name='L2 Reg', 
                                            line=dict(color='#FFFF00', width=3)))
                 fig_reg.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(8,11,20,0.8)',
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,11,20,0.8)',
                     font=dict(family='Share Tech Mono', color='#3D4F66', size=10),
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    height=260,
+                    margin=dict(l=10, r=10, t=10, b=10), height=260,
                     xaxis=dict(showgrid=False, title=dict(text='EPOCH', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
                     yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='WEIGHT DECAY', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
                     legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
@@ -1085,9 +1047,8 @@ if uploaded_file:
                 reg_chart.plotly_chart(fig_reg, use_container_width=True, key=f"reg_{stats['epoch']}")
                 
                 progress_bar.progress(stats['epoch'] / 30)
-                time.sleep(0.02) # Yield for rendering
+                time.sleep(0.02)
                 
-            # === COMPLETE THE TRIAL ===
             metric_key = 'Accuracy' if dna.get('task_type') == 'classification' else 'R2 Score'
             training_results = {
                 'final_metric': final_metric,
@@ -1096,7 +1057,6 @@ if uploaded_file:
             }
             
             if (training_results is not None and training_results.get('final_metric') is not None):
-                # --- Vizier Trial Tracking ---
                 if 'study' not in st.session_state:
                     from vizier_stub import Study
                     st.session_state['study'] = Study(name="metatune_session")
@@ -1109,7 +1069,6 @@ if uploaded_file:
                     elapsed_secs=training_results.get('training_time', 0.0)
                 )
                 st.session_state['study'].add_trial(_trial)
-                # --- End Trial Tracking ---
 
                 active_trial.complete(metric_value=training_results.get('final_metric', 0.0), elapsed_secs=training_results.get('training_time', 0.0))
                 designer.update(active_trial, study.trials)
@@ -1128,15 +1087,12 @@ if uploaded_file:
                 st.markdown(f"""
 <div style="
   background:linear-gradient(135deg,var(--void),var(--deep));
-  border:1px solid rgba(0,212,255,0.2);
-  border-top:2px solid var(--bio-cyan);
-  padding:32px;
-  margin:16px 0;
+  border:1px solid rgba(0,212,255,0.2); border-top:2px solid var(--bio-cyan);
+  padding:32px; margin:16px 0;
   clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);
   animation:slideUpFadeIn 0.6s ease-out;
 ">
   <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-    <!-- Orbital spinner (static-looking for complete state) -->
     <div style="width:64px;height:64px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
       <div style="position:absolute;inset:0;border:2px solid var(--bio-cyan);border-right-color:transparent;border-radius:50%;animation:orbitalSpin 2s linear infinite;"></div>
       <span style="font-size:24px;position:relative;">🧠</span>
@@ -1148,14 +1104,11 @@ if uploaded_file:
       <div style="font-family:var(--font-display);font-size:36px;letter-spacing:2px;color:var(--text-primary);">
         {training_results.get('metric_name', 'METRIC')}: <span style="color:{sc};">{training_results.get('final_metric', 0.0):.4f}</span>
       </div>
-      <!-- Performance bar -->
       <div style="margin-top:12px;background:rgba(26,37,64,0.6);border-radius:2px;height:4px;width:min(400px,100%);overflow:hidden;">
         <div style="height:100%;width:{min(final_score_pct,100):.0f}%;background:linear-gradient(90deg,var(--bio-cyan),var(--dna-green));border-radius:2px;box-shadow:0 0 8px rgba(0,212,255,0.5);"></div>
       </div>
       <div style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;margin-top:8px;letter-spacing:1px;">
-        Trained in {training_results.get('training_time', 0.0):.2f}s ·
-        {training_results.get('total_epochs', 30)} epochs ·
-        Best at epoch {training_results.get('best_epoch', 0) + 1}
+        Trained in {training_results.get('training_time', 0.0):.2f}s · 30 epochs
       </div>
     </div>
   </div>
@@ -1164,7 +1117,6 @@ if uploaded_file:
             else:
                 st.error("⚠️ Training did not complete. Check your dataset and hyperparameters.")
             
-            # Save Model Button
             torch.save(trainer.model.state_dict(), "best_model.pth")
             
             with open("best_model.pth", "rb") as f:
