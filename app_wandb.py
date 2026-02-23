@@ -302,22 +302,22 @@ if uploaded_file:
                 color = '#00FFFF' if i == 0 else '#444'
                 anim = 'animation: neuralPulse 2s infinite;' if i == 0 else ''
                 phase_cards_html += f"""
-                <div style="background:{bg};border:1px solid {border};border-radius:8px;padding:12px;text-align:center;{anim}">
-                    <div style="font-size:20px;margin-bottom:4px;">{em}</div>
-                    <div style="color:{color};font-size:10px;letter-spacing:1px;">{label}</div>
-                </div>"""
+<div style="background:{bg};border:1px solid {border};border-radius:8px;padding:12px;text-align:center;{anim}">
+    <div style="font-size:20px;margin-bottom:4px;">{em}</div>
+    <div style="color:{color};font-size:10px;letter-spacing:1px;">{label}</div>
+</div>"""
 
             launch_container = st.empty()
-            launch_container.markdown(textwrap.dedent(f"""
-            <div style="
-                background: linear-gradient(135deg, #0A0A0F 0%, #0D1117 50%, #0A0A0F 100%);
-                border: 1px solid #00FFFF33;
-                border-radius: 12px;
-                padding: 32px;
-                position: relative;
-                overflow: hidden;
-                font-family: 'Courier New', monospace;
-            ">
+            launch_container.markdown(f"""
+<div style="
+    background: linear-gradient(135deg, #0A0A0F 0%, #0D1117 50%, #0A0A0F 100%);
+    border: 1px solid #00FFFF33;
+    border-radius: 12px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+">
                 <!-- Scan line sweep -->
                 <div style="
                     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -325,7 +325,6 @@ if uploaded_file:
                     animation: scanSweep 2s linear infinite;
                     pointer-events: none;
                 "></div>
-
                 <!-- Header -->
                 <div style="
                     display: flex; align-items: center; gap: 16px; margin-bottom: 28px;
@@ -369,12 +368,10 @@ if uploaded_file:
                         <span style="color: #00FF41; font-size: 11px; letter-spacing: 2px; margin-left: 6px;">LIVE</span>
                     </div>
                 </div>
-
                 <!-- Phase indicators -->
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;">
                     {phase_cards_html}
                 </div>
-
                 <!-- Animated progress bar -->
                 <div style="margin-bottom: 16px;">
                     <div style="
@@ -397,7 +394,6 @@ if uploaded_file:
                         "></div>
                     </div>
                 </div>
-
                 <!-- Data stream readout -->
                 <div style="
                     background: #050505; border: 1px solid #1a1a1a;
@@ -408,9 +404,9 @@ if uploaded_file:
                     <span style="animation: matrixFlicker 0.3s infinite; animation-delay: 0.0s;">▶ Initializing preprocessing pipeline...</span><br>
                     <span style="animation: matrixFlicker 0.3s infinite; animation-delay: 0.1s;">▶ Splitting train/validation sets (80/20)...</span><br>
                     <span style="color: #FFB800; animation: matrixFlicker 0.4s infinite; animation-delay: 0.3s;">◈ Anti-overfitting regularization: ACTIVE</span>
-                </div>
-            </div>
-            """), unsafe_allow_html=True)
+</div>
+</div>
+""", unsafe_allow_html=True)
 
             # ── ACTUAL TRAINING (runs while animation shows) ───────────────────
             with st.spinner(""):
@@ -438,10 +434,10 @@ if uploaded_file:
                     val_str = f'{v:.4f}' if isinstance(v, float) else str(v)
                     delay = f'{i*0.1:.1f}s'
                     hyperparam_html += f"""
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span style="color:#555;font-size:10px;font-family:'Courier New',monospace;">{str(k).upper()[:16]}</span>
-                        <span style="color:#00FFFF;font-size:11px;font-weight:bold;font-family:'Courier New',monospace;animation:matrixFlicker 2s infinite;animation-delay:{delay};">{val_str}</span>
-                    </div>"""
+<div style="display:flex;justify-content:space-between;align-items:center;">
+    <span style="color:#555;font-size:10px;font-family:'Courier New',monospace;">{str(k).upper()[:16]}</span>
+    <span style="color:#00FFFF;font-size:11px;font-weight:bold;font-family:'Courier New',monospace;animation:matrixFlicker 2s infinite;animation-delay:{delay};">{val_str}</span>
+</div>"""
 
                 # ── RESULTS EXPLOSION ANIMATION ────────────────────────────────
                 # Score color based on performance
@@ -459,17 +455,17 @@ if uploaded_file:
                     score_label = 'TRAINING'
                     score_ring_color = '#FF4B4B'
 
-                st.markdown(textwrap.dedent(f"""
-                <div style="
-                    background: linear-gradient(135deg, #0A0A0F 0%, #0D1117 100%);
-                    border: 1px solid {score_color}44;
-                    border-radius: 16px;
-                    padding: 32px;
-                    margin: 16px 0;
-                    animation: slideUpFadeIn 0.6s ease-out;
-                    position: relative;
-                    overflow: hidden;
-                ">
+                st.markdown(f"""
+<div style="
+    background: linear-gradient(135deg, #0A0A0F 0%, #0D1117 100%);
+    border: 1px solid {score_color}44;
+    border-radius: 16px;
+    padding: 32px;
+    margin: 16px 0;
+    animation: slideUpFadeIn 0.6s ease-out;
+    position: relative;
+    overflow: hidden;
+">
                     <!-- Victory glow backdrop -->
                     <div style="
                         position: absolute; top: -50%; left: 50%;
@@ -478,7 +474,6 @@ if uploaded_file:
                         transform: translateX(-50%);
                         pointer-events: none;
                     "></div>
-
                     <!-- Header row -->
                     <div style="
                         display: flex; align-items: center;
@@ -524,7 +519,6 @@ if uploaded_file:
                             </div>
                         </div>
                     </div>
-
                     <!-- Metric grid -->
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
                         <div style="
@@ -569,7 +563,6 @@ if uploaded_file:
                             <div style="color: #555; font-size: 9px; margin-top: 4px;">DEPLOYABLE ✓</div>
                         </div>
                     </div>
-
                     <!-- Animated performance bar -->
                     <div style="margin-bottom: 20px;">
                         <div style="
@@ -590,7 +583,6 @@ if uploaded_file:
                             "></div>
                         </div>
                     </div>
-
                     <!-- Hyperparameter readout -->
                     <div style="
                         background: #050505; border: 1px solid #1a1a1a;
@@ -601,16 +593,16 @@ if uploaded_file:
                             color: #444; font-size: 10px; letter-spacing: 3px;
                             margin-bottom: 10px;
                         ">HYPERPARAMETER CONFIGURATION</div>
-                        <div style="
-                            display: grid;
-                            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-                            gap: 8px;
-                        ">
-                            {hyperparam_html}
-                        </div>
-                    </div>
-                </div>
-                """), unsafe_allow_html=True)
+        <div style="
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 8px;
+        ">
+            {hyperparam_html}
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
                 # ── VIZIER TRIAL TRACKING (keep existing logic) ────────────────
                 if 'study' not in st.session_state:
@@ -636,33 +628,33 @@ if uploaded_file:
                     _optimal = st.session_state['study'].optimal_trials()
                     if _optimal:
                         _best = _optimal[0]
-                        st.markdown(textwrap.dedent(f"""
-                        <div style="
-                            background: linear-gradient(135deg, #0A1A0A, #0A0A0F);
-                            border: 1px solid #00FF4144;
-                            border-left: 4px solid #00FF41;
-                            border-radius: 10px; padding: 16px;
-                            animation: slideUpFadeIn 0.5s ease-out 0.5s both;
-                            display: flex; align-items: center; gap: 16px;
-                        ">
-                            <div style="
-                                font-size: 28px;
-                                animation: heartbeat 2s ease-in-out infinite;
-                            ">🏆</div>
-                            <div>
-                                <div style="color: #00FF41; font-size: 11px; letter-spacing: 3px;">
-                                    PERSONAL BEST
-                                </div>
-                                <div style="color: #FAFAFA; font-size: 20px; font-weight: 900;
-                                            font-family: 'Courier New', monospace;">
-                                    {_best.final_measurement:.4f}
-                                </div>
-                                <div style="color: #555; font-size: 10px;">
-                                    Trial #{_best.id} · {_best.elapsed_secs:.1f}s training time
-                                </div>
-                            </div>
-                        </div>
-                        """), unsafe_allow_html=True)
+                        st.markdown(f"""
+<div style="
+    background: linear-gradient(135deg, #0A1A0A, #0A0A0F);
+    border: 1px solid #00FF4144;
+    border-left: 4px solid #00FF41;
+    border-radius: 10px; padding: 16px;
+    animation: slideUpFadeIn 0.5s ease-out 0.5s both;
+    display: flex; align-items: center; gap: 16px;
+">
+    <div style="
+        font-size: 28px;
+        animation: heartbeat 2s ease-in-out infinite;
+    ">🏆</div>
+    <div>
+        <div style="color: #00FF41; font-size: 11px; letter-spacing: 3px;">
+            PERSONAL BEST
+        </div>
+        <div style="color: #FAFAFA; font-size: 20px; font-weight: 900;
+                    font-family: 'Courier New', monospace;">
+            {_best.final_measurement:.4f}
+        </div>
+        <div style="color: #555; font-size: 10px;">
+            Trial #{_best.id} · {_best.elapsed_secs:.1f}s training time
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
                         with st.expander("🔍 Best Hyperparameters"):
                             st.json(_best.parameters)
 
@@ -675,20 +667,20 @@ if uploaded_file:
                 )
 
             else:
-                st.markdown(textwrap.dedent("""
-                <div style="
-                    background: #1A0A0A; border: 1px solid #FF4B4B44;
-                    border-left: 4px solid #FF4B4B; border-radius: 10px; padding: 20px;
-                    animation: slideUpFadeIn 0.5s ease-out;
-                ">
-                    <div style="color: #FF4B4B; font-size: 14px; font-weight: bold;">
-                        ⚠️ Training did not complete.
-                    </div>
-                    <div style="color: #888; font-size: 12px; margin-top: 6px;">
-                        Check your dataset and hyperparameters.
-                    </div>
-                </div>
-                """), unsafe_allow_html=True)
+                st.markdown("""
+<div style="
+    background: #1A0A0A; border: 1px solid #FF4B4B44;
+    border-left: 4px solid #FF4B4B; border-radius: 10px; padding: 20px;
+    animation: slideUpFadeIn 0.5s ease-out;
+">
+    <div style="color: #FF4B4B; font-size: 14px; font-weight: bold;">
+        ⚠️ Training did not complete.
+    </div>
+    <div style="color: #888; font-size: 12px; margin-top: 6px;">
+        Check your dataset and hyperparameters.
+    </div>
+</div>
+""", unsafe_allow_html=True)
         else:
             status_indicator.warning(f"Training Trial #{active_trial.id}...")
             
