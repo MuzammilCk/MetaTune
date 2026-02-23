@@ -1168,6 +1168,27 @@
       }, '*');
     }
 
+    // Fallback path for environments where Streamlit component messages
+    // are not delivered from a plain components.html iframe.
+    function _navigateToWorkspaceInFrame() {
+      window.location.href = '/?intro=done';
+    }
+
+    function _streamlitDoneWithRetry() {
+      _streamlitReady();
+      _streamlitDone();
+
+      let attempts = 0;
+      const iv = setInterval(() => {
+        attempts += 1;
+        _streamlitDone();
+        if (attempts >= 6) clearInterval(iv);
+      }, 180);
+
+      // Hard fallback so the user always reaches the workspace.
+      setTimeout(_navigateToWorkspaceInFrame, 500);
+    }
+
     // Register component as ready as soon as the page loads
     window.addEventListener('load', _streamlitReady);
 
@@ -1177,11 +1198,13 @@
       fd.classList.add('active');
       progressBar.style.width = '100%';
       // Small delay for the fade to be visible, then notify Python
-      setTimeout(_streamlitDone, 700);
+      setTimeout(() => {
+        _streamlitDoneWithRetry();
+      }, 700);
     }
 
     function skipIntro() {
-      _streamlitDone();
+      _streamlitDoneWithRetry();
     }
 
     // ESC key skip
