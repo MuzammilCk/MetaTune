@@ -77,14 +77,17 @@ class DynamicTrainer:
         """Leakage-Free Data Prep with Categorical Handling"""
         df = pd.read_csv(self.data_path)
         if self.target_col is None: self.target_col = df.columns[-1]
-        
+
         X = df.drop(columns=[self.target_col])
         y = df[self.target_col]
+
+        task_type = self.dna['task_type']
+        stratify = y if task_type == 'classification' else None
 
         # 1. SPLIT DATA FIRST (The Critical Fix)
         # We split raw data before doing ANY math on it
         X_train_raw, X_val_raw, y_train_raw, y_val_raw = train_test_split(
-            X, y, test_size=0.2, random_state=42
+            X, y, test_size=0.2, random_state=42, stratify=stratify
         )
 
         # 2. Process Numerical Columns
@@ -102,7 +105,7 @@ class DynamicTrainer:
                 mode = X_train_raw[col].mode()[0]
                 X_train_raw[col] = X_train_raw[col].fillna(mode)
                 X_val_raw[col] = X_val_raw[col].fillna(mode)
-                
+
                 # Simple One-Hot Encoding
                 X_train_raw = pd.get_dummies(X_train_raw, columns=[col], drop_first=True)
                 X_val_raw = pd.get_dummies(X_val_raw, columns=[col], drop_first=True)
@@ -116,16 +119,24 @@ class DynamicTrainer:
         X_val = self.scaler.transform(X_val_raw)
 
         # 5. Target Encoding
-        if self.dna['task_type'] == 'classification':
+        if task_type == 'classification':
             self.le = LabelEncoder()
-            y_train = self.le.fit_transform(y_train_raw)
-            y_val_raw = y_val_raw.map(lambda s: s if s in self.le.classes_ else self.le.classes_[0])
-            y_val = self.le.transform(y_val_raw)
+            y_train_labels = y_train_raw.astype(str)
+            y_train = self.le.fit_transform(y_train_labels)
+
+            y_val_labels = y_val_raw.astype(str)
+            known_classes = set(self.le.classes_)
+            y_val_with_unknown = y_val_labels.where(y_val_labels.isin(known_classes), 'Unknown')
+
+            if 'Unknown' in y_val_with_unknown.values and 'Unknown' not in known_classes:
+                self.le.classes_ = np.unique(np.append(self.le.classes_, 'Unknown'))
+
+            y_val = self.le.transform(y_val_with_unknown)
             self.output_dim = len(self.le.classes_)
             self.criterion = nn.CrossEntropyLoss()
         else:
             # FIX: Scale Target Variable to prevent Gradient Explosion
-            if self.dna['task_type'] == 'regression':
+            if task_type == 'regression':
                 y_train_raw = y_train_raw.fillna(y_train_raw.median())
                 y_val_raw = y_val_raw.fillna(y_train_raw.median())
             self.y_scaler = StandardScaler()
@@ -135,8 +146,8 @@ class DynamicTrainer:
             self.criterion = nn.MSELoss()
 
         # 6. Tensors
-        dtype_y = torch.LongTensor if self.dna['task_type'] == 'classification' else torch.FloatTensor
-        
+        dtype_y = torch.LongTensor if task_type == 'classification' else torch.FloatTensor
+
         self.train_loader = DataLoader(
             TensorDataset(torch.FloatTensor(X_train).to(self.device), dtype_y(y_train).to(self.device)),
             batch_size=int(self.params['batch_size']), shuffle=True
@@ -227,11 +238,11 @@ class DynamicTrainer:
                         true.extend(y_b.cpu().numpy().flatten())
                     else:
                         # Inverse Transform for Regression Metrics
-                        batch_preds = out.cpu().numpy()
-                        batch_true = y_b.cpu().numpy()
-                        
-                        preds.extend(self.y_scaler.inverse_transform(batch_preds).flatten())
-                        true.extend(self.y_scaler.inverse_transform(batch_true).flatten())
+                        batch_preds = out.cpu().numpy().reshape(-1, 1)
+                        batch_true = y_b.cpu().numpy().reshape(-1, 1)
+
+                        preds.extend(self.y_scaler.inverse_transform(batch_preds).reshape(-1).tolist())
+                        true.extend(self.y_scaler.inverse_transform(batch_true).reshape(-1).tolist())
             
             val_loss = np.mean(val_losses)
             

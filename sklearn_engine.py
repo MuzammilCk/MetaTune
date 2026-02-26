@@ -130,9 +130,20 @@ def train_and_package(
     X = df.drop(columns=[target_col])
     y = df[target_col]
 
-    X_train_raw, X_val_raw, y_train_raw, y_val_raw = train_test_split(X, y, test_size=0.2, random_state=42)
-
     task_type = dna.get("task_type", "classification")
+    stratify = None
+    if task_type == "classification":
+        if y.nunique() < 2:
+            raise ValueError("Classification requires at least 2 classes in the dataset.")
+        stratify = y if y.nunique() > 1 else None
+
+    X_train_raw, X_val_raw, y_train_raw, y_val_raw = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=stratify,
+    )
 
     le: Optional[LabelEncoder] = None
     if task_type == "classification":
@@ -155,23 +166,6 @@ def train_and_package(
     import time
     start_time = time.time()
     
-    # Handle the extreme case where the ENTIRE dataset natively only has 1 class
-    if task_type == 'classification':
-        unique_classes = np.unique(y_train)
-        if len(unique_classes) < 2:
-            # If even the raw data only has 1 class, we must artificially inject a second
-            # to prevent Sklearn from crashing outright
-            dummy_class = 1 if unique_classes[0] == 0 else 0
-            
-            # Inject one dummy opposite class into the training split
-            X_train_raw.iloc[0] = X_train_raw.iloc[0] # Keep same features
-            y_train[0] = dummy_class
-            
-            # Re-fit the LabelEncoder to ensure it knows about the dummy class
-            if le is not None and dummy_class not in le.transform(le.classes_):
-                new_classes = np.append(le.classes_, [f"dummy_{dummy_class}"])
-                le.classes_ = np.unique(new_classes)
-            
     model.fit(X_train_raw, y_train)
 
     preds = model.predict(X_val_raw)
