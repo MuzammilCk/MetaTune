@@ -115,15 +115,17 @@ class MetaLearner:
         else:
             # Reorder columns to match existing file
             try:
-                # Read only header
-                existing_columns = pd.read_csv(self.knowledge_base_path, nrows=0).columns.tolist()
-                # Add missing columns with default 0
+                # Read only header from existing CSV for canonical column order
+                existing_columns = pd.read_csv(self.knowledge_base_path, nrows=0).columns
+
+                # Add any missing columns expected by the existing CSV
                 for col in existing_columns:
                     if col not in df_row.columns:
                         df_row[col] = 0
-                # Filter down and ensure order matches
-                df_row = df_row[self.knowledge_base.columns.intersection(df_row.columns)] if hasattr(self, 'knowledge_base') else df_row[pd.Index(existing_columns).intersection(df_row.columns)]
-                
+
+                # Align strictly to existing CSV schema/order before append
+                df_row = df_row.reindex(columns=existing_columns)
+
                 # Append to existing
                 df_row.to_csv(self.knowledge_base_path, mode='a', header=False, index=False)
             except pd.errors.EmptyDataError:
