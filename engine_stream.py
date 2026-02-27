@@ -107,18 +107,27 @@ class DynamicTrainer:
             X_val_raw[num_cols] = X_val_raw[num_cols].fillna(medians)
 
         # 3. Process Categorical Columns
+        # Drop high-cardinality columns BEFORE one-hot encoding to prevent
+        # memory explosion. Columns with >50 unique values (e.g. 'model',
+        # 'brand') would produce thousands of dummy columns on large datasets,
+        # freezing the generator before the first yield fires.
         cat_cols = X_train_raw.select_dtypes(exclude=[np.number]).columns
         if len(cat_cols) > 0:
-            for col in cat_cols:
+            high_card_cols = [col for col in cat_cols if X_train_raw[col].nunique() > 50]
+            low_card_cols  = [col for col in cat_cols if X_train_raw[col].nunique() <= 50]
+
+            if high_card_cols:
+                X_train_raw = X_train_raw.drop(columns=high_card_cols)
+                X_val_raw   = X_val_raw.drop(columns=high_card_cols)
+
+            for col in low_card_cols:
                 mode = X_train_raw[col].mode()[0]
                 X_train_raw[col] = X_train_raw[col].fillna(mode)
-                X_val_raw[col] = X_val_raw[col].fillna(mode)
-
-                # Simple One-Hot Encoding
+                X_val_raw[col]   = X_val_raw[col].fillna(mode)
                 X_train_raw = pd.get_dummies(X_train_raw, columns=[col], drop_first=True)
-                X_val_raw = pd.get_dummies(X_val_raw, columns=[col], drop_first=True)
+                X_val_raw   = pd.get_dummies(X_val_raw,   columns=[col], drop_first=True)
 
-        # Align columns (ensure train/val have same dummy columns)
+        # Align columns (ensure train/val have same dummy columns after get_dummies)
         X_train_raw, X_val_raw = X_train_raw.align(X_val_raw, join='left', axis=1, fill_value=0)
 
         # 4. Scaling (Fit on Train, Transform on Val)

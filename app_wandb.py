@@ -578,7 +578,7 @@ if uploaded_file:
             margin=dict(l=20, r=20, t=20, b=20),
             height=240,
         )
-        st.plotly_chart(fig_radar, use_container_width=True)
+        st.plotly_chart(fig_radar, width='stretch')
 
         # ── DNA METRIC BARS (add AFTER radar, BEFORE existing metrics) ──
         st.markdown(f"""
@@ -1005,60 +1005,73 @@ if uploaded_file:
             progress_bar = st.progress(0)
             
             history = {'epoch': [], 'train_loss': [], 'val_loss': [], 'l2': []}
-            
+
             trainer = DynamicTrainer("temp.csv", dna, params, target_col if target_col else None)
-            
+
             final_metric = 0.0
             start_time = time.time()
-            for stats in trainer.run(epochs=30):
-                history['epoch'].append(stats['epoch'])
-                history['train_loss'].append(stats['train_loss'])
-                history['val_loss'].append(stats['val_loss'])
-                history['l2'].append(stats['current_l2'])
-                
-                final_metric = stats['metric']
-                
-                if stats.get('adaptation'):
-                    st.toast(stats['adaptation'], icon="🧠")
-                
-                fig_loss = go.Figure()
-                fig_loss.add_trace(go.Scatter(x=history['epoch'], y=history['train_loss'], 
-                                            mode='lines', name='Train', line=dict(color='#00FFFF', width=2)))
-                fig_loss.add_trace(go.Scatter(x=history['epoch'], y=history['val_loss'], 
-                                            mode='lines', name='Val', line=dict(color='#FF00FF', width=2)))
-                fig_loss.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,11,20,0.8)',
-                    font=dict(family='Share Tech Mono', color='#3D4F66', size=10),
-                    margin=dict(l=10, r=10, t=10, b=10), height=260,
-                    xaxis=dict(showgrid=False, title=dict(text='EPOCH', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='LOSS', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
-                    legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
-                )
-                loss_chart.plotly_chart(fig_loss, use_container_width=True, key=f"loss_{stats['epoch']}")
-                
-                fig_reg = go.Figure()
-                fig_reg.add_trace(go.Scatter(x=history['epoch'], y=history['l2'], 
-                                           mode='lines+markers', name='L2 Reg', 
-                                           line=dict(color='#FFFF00', width=3)))
-                fig_reg.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,11,20,0.8)',
-                    font=dict(family='Share Tech Mono', color='#3D4F66', size=10),
-                    margin=dict(l=10, r=10, t=10, b=10), height=260,
-                    xaxis=dict(showgrid=False, title=dict(text='EPOCH', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='WEIGHT DECAY', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
-                    legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
-                )
-                reg_chart.plotly_chart(fig_reg, use_container_width=True, key=f"reg_{stats['epoch']}")
-                
-                progress_bar.progress(stats['epoch'] / 30)
-                time.sleep(0.02)
-                
-            metric_key = 'Accuracy' if dna.get('task_type') == 'classification' else 'R2 Score'
-            training_results = {
-                'final_metric': final_metric,
-                'metric_name': metric_key,
-                'training_time': time.time() - start_time
-            }
+            training_results = None
+
+            try:
+                for stats in trainer.run(epochs=30):
+                    history['epoch'].append(stats['epoch'])
+                    history['train_loss'].append(stats['train_loss'])
+                    history['val_loss'].append(stats['val_loss'])
+                    history['l2'].append(stats['current_l2'])
+
+                    final_metric = stats['metric']
+
+                    if stats.get('adaptation'):
+                        st.toast(stats['adaptation'], icon="🧠")
+
+                    fig_loss = go.Figure()
+                    fig_loss.add_trace(go.Scatter(
+                        x=history['epoch'], y=history['train_loss'],
+                        mode='lines', name='Train', line=dict(color='#00FFFF', width=2)
+                    ))
+                    fig_loss.add_trace(go.Scatter(
+                        x=history['epoch'], y=history['val_loss'],
+                        mode='lines', name='Val', line=dict(color='#FF00FF', width=2)
+                    ))
+                    fig_loss.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,11,20,0.8)',
+                        font=dict(family='Share Tech Mono', color='#3D4F66', size=10),
+                        margin=dict(l=10, r=10, t=10, b=10), height=260,
+                        xaxis=dict(showgrid=False, title=dict(text='EPOCH', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
+                        yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='LOSS', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
+                        legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
+                    )
+                    loss_chart.plotly_chart(fig_loss, width='stretch', key=f"loss_{stats['epoch']}")
+
+                    fig_reg = go.Figure()
+                    fig_reg.add_trace(go.Scatter(
+                        x=history['epoch'], y=history['l2'],
+                        mode='lines+markers', name='L2 Reg',
+                        line=dict(color='#FFFF00', width=3)
+                    ))
+                    fig_reg.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(8,11,20,0.8)',
+                        font=dict(family='Share Tech Mono', color='#3D4F66', size=10),
+                        margin=dict(l=10, r=10, t=10, b=10), height=260,
+                        xaxis=dict(showgrid=False, title=dict(text='EPOCH', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
+                        yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='WEIGHT DECAY', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
+                        legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
+                    )
+                    reg_chart.plotly_chart(fig_reg, width='stretch', key=f"reg_{stats['epoch']}")
+
+                    progress_bar.progress(min(stats['epoch'] / 30, 1.0))
+                    time.sleep(0.02)
+
+                metric_key = 'Accuracy' if dna.get('task_type') == 'classification' else 'R2 Score'
+                training_results = {
+                    'final_metric': final_metric,
+                    'metric_name': metric_key,
+                    'training_time': time.time() - start_time
+                }
+
+            except Exception as _pytorch_err:
+                st.error(f"⚠️ PyTorch training error: {_pytorch_err}")
+                training_results = None
             
             if (training_results is not None and training_results.get('final_metric') is not None):
                 if 'study' not in st.session_state:
@@ -1121,12 +1134,14 @@ if uploaded_file:
             else:
                 st.error("⚠️ Training did not complete. Check your dataset and hyperparameters.")
             
-            torch.save(trainer.model.state_dict(), "best_model.pth")
+            if training_results is not None and hasattr(trainer, 'model') and trainer.model is not None:
+                torch.save(trainer.model.state_dict(), "best_model.pth")
             
-            with open("best_model.pth", "rb") as f:
-                st.download_button(
-                    label="💾 Download Trained Model (.pth)",
-                    data=f,
-                    file_name="meta_tune_model.pth",
-                    mime="application/octet-stream"
-                )
+            if os.path.exists("best_model.pth"):
+                with open("best_model.pth", "rb") as f:
+                    st.download_button(
+                        label="💾 Download Trained Model (.pth)",
+                        data=f,
+                        file_name="meta_tune_model.pth",
+                        mime="application/octet-stream"
+                    )
