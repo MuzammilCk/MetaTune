@@ -1,3 +1,4 @@
+"""DynamicTrainer — STREAMING MODE (generator, yields per epoch). Used by: app_wandb.py only. DO NOT import in bilevel.py or pipeline.py — use engine.py instead."""
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -82,7 +83,14 @@ class DynamicTrainer:
         y = df[self.target_col]
 
         task_type = self.dna['task_type']
-        stratify = y if task_type == 'classification' else None
+        if task_type == 'classification':
+            # Only stratify if every class has at least 2 samples
+            min_class_count = y.value_counts().min()
+            stratify = y if min_class_count >= 2 else None
+            if stratify is None:
+                print("⚠️  Stratify disabled: minority class has < 2 samples.")
+        else:
+            stratify = None
 
         # 1. SPLIT DATA FIRST (The Critical Fix)
         # We split raw data before doing ANY math on it

@@ -39,9 +39,10 @@ class BilevelOptimizer:
         self.trial_history = []  # List of {"hyperparams": dict, "val_metric": float}
         self.state = "INITIALIZE"
     
-    def optimize(self, dataset_dna: dict, X_train, y_train, X_val, y_val, task_type: str) -> dict:
+    def optimize(self, dataset_dna: dict, X_train, y_train, X_val, y_val, task_type: str, data_path: str = None) -> dict:
         """Run bilevel optimization. Returns best hyperparams found."""
         self.current_dna = dataset_dna
+        self._data_path = data_path or "temp.csv"
         
         print(f"🔄 Starting Bilevel Optimization (Vizier Inspired) for {self.config.max_outer_iterations} iterations.")
         
@@ -88,7 +89,7 @@ class BilevelOptimizer:
     def _evaluate_hyperparams(self, hyperparams: dict, X_train, y_train, X_val, y_val, task_type: str) -> float:
         """Inner loop: train with given hyperparams, return val metric."""
         # DynamicTrainer internally reads temp.csv. We use it to match MetaTune architecture.
-        trainer = DynamicTrainer(data_path="temp.csv", dataset_dna=self.current_dna, hyperparameters=hyperparams)
+        trainer = DynamicTrainer(data_path=self._data_path, dataset_dna=self.current_dna, hyperparameters=hyperparams)
         result = trainer.run(epochs=10)
         return result.get("final_metric", 0.0)
     

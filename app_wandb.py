@@ -645,8 +645,12 @@ if uploaded_file:
         from designer_brain import MetaLearningDesigner
         
         # 1. Create Designer & Study
-        designer = MetaLearningDesigner(dna)
-        study = Study(designer=designer, study_id="meta_tune_session")
+        if 'metatune_study' not in st.session_state or st.session_state.get('last_dna') != str(dna.get('n_instances')):
+            designer = MetaLearningDesigner(dna)
+            st.session_state['metatune_study'] = Study(designer=designer, study_id="meta_tune_session")
+            st.session_state['last_dna'] = str(dna.get('n_instances'))
+        study = st.session_state['metatune_study']
+        designer = study.designer
         
         # 2. Get Suggestions (Trials)
         trials = study.suggest(count=1)

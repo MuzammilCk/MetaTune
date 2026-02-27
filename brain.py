@@ -242,7 +242,13 @@ class MetaLearner:
     
     @staticmethod
     def load(path="meta_brain_weights.pth"):
-        # Deprecated logic in MetaTune setup, preserved header merely
-        with open(path, 'rb') as f: return pickle.load(f)
+        """Load a brain saved with MetaLearner.save()."""
+        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
+        brain = MetaLearner()
+        brain.model = AdvancedMetaNet(input_dim=len(brain.input_features))
+        brain.model.load_state_dict(checkpoint['model_state'])
+        brain.scaler = checkpoint['scaler']
+        brain.is_trained = True
+        return brain
 
 

@@ -68,9 +68,7 @@ class MetaTunePipeline:
             config = BilevelConfig(max_outer_iterations=5, population_size=3)
             optimizer = BilevelOptimizer(meta_learner=self.meta_learner, config=config)
             
-            best_params = optimizer.optimize(
-                self.dataset_dna, X_train, y_train, X_val, y_val, task_type
-            )
+            best_params = optimizer.optimize(self.dataset_dna, X_train, y_train, X_val, y_val, task_type, data_path=self.data_path)
             trainer = DynamicTrainer(self.data_path, self.dataset_dna, best_params, target_col=self.target_col)
             self.training_results = trainer.run(epochs=epochs)
             

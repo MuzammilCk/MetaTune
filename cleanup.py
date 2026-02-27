@@ -17,7 +17,13 @@ def cleanup_project():
         'README.md', 'requirements.txt', '.gitignore',
         # Scripts that might be useful
         'generate_audit_data.py', 'test_audit.py', 'verify_metatune.py', 'verify_evolution.py',
-        'debug_csv.py'
+        'debug_csv.py',
+        'algorithm_recommender.py',
+        'designer_brain.py',
+        'sklearn_engine.py',
+        'vizier_stub.py',
+        'intro.html',
+        'car.py',
     }
     
     WHITELIST_DIRS = {

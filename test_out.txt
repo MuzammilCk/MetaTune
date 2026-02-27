@@ -1,0 +1,83 @@
+C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\Lib\site-packages\pytest_asyncio\plugin.py:207: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts =============================
+platform win32 -- Python 3.13.5, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\THINKPAD L13\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\THINKPAD L13\Projects\newmetatune\MetaTune
+plugins: anyio-4.12.0, Faker-40.4.0, jaxtyping-0.3.7, langsmith-0.4.49, asyncio-0.25.2, cov-6.0.0, mock-3.15.1, typeguard-2.13.3
+asyncio: mode=Mode.STRICT, asyncio_default_fixture_loop_scope=None
+collecting ... collected 1 item
+
+test_audit.py::TestMetaTuneRigorous::test_03_fake_code_detector FAILED   [100%]
+
+================================== FAILURES ===================================
+_______________ TestMetaTuneRigorous.test_03_fake_code_detector _______________
+
+self = <test_audit.TestMetaTuneRigorous testMethod=test_03_fake_code_detector>
+
+    def test_03_fake_code_detector(self):
+        """Test 3: THE FAKE CODE DETECTOR.
+           Does the brain actually learn, or is it hardcoded?
+           We check if predictions CHANGE after learning from history.
+        """
+        print("\\n\U0001f9ea Test 03: Fake Brain Detector (Online Learning Verification)...")
+    
+        # 1. Get Baseline Prediction (Cold Start)
+        brain = MetaLearner()
+        # Mock DNA similar to audit data
+        dna = {
+            'n_instances': 500, 'n_features': 10,
+            'target_entropy': 1.5, 'mean_skewness': 0.5, 'task_type': 'classification'
+        }
+        pred_cold = brain.predict(dna)
+        print(f"   \U0001f9ca Cold Start Prediction (LR): {pred_cold['learning_rate']:.6f}")
+    
+        # 2. Inject Artificial History into Knowledge Base
+        # We inject history that suggests a VERY high learning rate to see if Brain adapts.
+        print("   \U0001f489 Injecting 'High LR' Memory into Knowledge Base...")
+        history_data = []
+        for _ in range(10):
+            # Same DNA, but High Learning Rate was 'successful'
+            row = dna.copy()
+            row.update({
+                'learning_rate': 0.05, # Much higher than typical cold start
+                'weight_decay_l2': 0.001,
+                'batch_size': 32,
+                'dropout': 0.2,
+                'optimizer_type': 'adam',
+                'optimizer_type_code': 1,
+                'final_metric': 0.99 # Good performance
+            })
+            history_data.append(row)
+    
+        pd.DataFrame(history_data).to_csv("knowledge_base.csv", index=False)
+    
+        # 3. Retrain Brain
+        brain = MetaLearner() # Reload
+        brain.train(epochs=20)
+    
+        # 4. Get New Prediction
+        pred_warm = brain.predict(dna)
+        print(f"   \U0001f525 Warm Prediction (LR):       {pred_warm['learning_rate']:.6f}")
+    
+        # 5. The Verdict
+        # If the brain ignores the history, pred_cold will likely equal pred_warm (or close).
+        # We expect pred_warm to shift towards 0.05.
+    
+        diff = abs(pred_warm['learning_rate'] - pred_cold['learning_rate'])
+        print(f"   \u0394 Change: {diff:.6f}")
+    
+        if diff < 0.001:
+>           self.fail("\u274c FAKE BRAIN DETECTED: Prediction did not change after training on new history. The logic is likely hardcoded.")
+E           AssertionError: \u274c FAKE BRAIN DETECTED: Prediction did not change after training on new history. The logic is likely hardcoded.
+
+test_audit.py:109: AssertionError
+---------------------------- Captured stdout setup ----------------------------
+\n============================================================\n\U0001f6e0\ufe0f  STARTING RIGOROUS QA SUITE\n============================================================
+---------------------------- Captured stdout call -----------------------------
+\n\U0001f9ea Test 03: Fake Brain Detector (Online Learning Verification)...\n\U0001f9e0 Meta-Learner Brain initialized on cpu\n\U0001f9ca Cold Start: Using Heuristics to bootstrap...\n   \U0001f9ca Cold Start Prediction (LR): 0.001116\n   \U0001f489 Injecting 'High LR' Memory into Knowledge Base...\n\U0001f9e0 Meta-Learner Brain initialized on cpu\n\u26a0\ufe0f  Only 10 records. Need 20+ for reliable training. Using heuristics.\n\U0001f9ca Cold Start: Using Heuristics to bootstrap...\n   \U0001f525 Warm Prediction (LR):       0.001116\n   \u0394 Change: 0.000000
+=========================== short test summary info ===========================
+FAILED test_audit.py::TestMetaTuneRigorous::test_03_fake_code_detector - Asse...
+============================== 1 failed in 3.67s ==============================

@@ -74,7 +74,7 @@ class TestMetaTuneRigorous(unittest.TestCase):
         # We inject history that suggests a VERY high learning rate to see if Brain adapts.
         print("   💉 Injecting 'High LR' Memory into Knowledge Base...")
         history_data = []
-        for _ in range(10):
+        for _ in range(25):
             # Same DNA, but High Learning Rate was 'successful'
             row = dna.copy()
             row.update({

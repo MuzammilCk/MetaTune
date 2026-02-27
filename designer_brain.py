@@ -1,5 +1,5 @@
 
-from vizier_stub import Designer, Trial
+from vizier_stub import Designer, Trial, TrialState
 from brain import MetaLearner
 import uuid
 
@@ -13,7 +13,7 @@ class MetaLearningDesigner(Designer):
         self.brain = MetaLearner()
         # Try load existing brain
         try:
-             self.brain = MetaLearner.load("meta_brain.pkl")
+             self.brain = MetaLearner.load("meta_brain_weights.pth")
         except:
              pass # Use untrained/heuristics if load fails
         
@@ -35,21 +35,7 @@ class MetaLearningDesigner(Designer):
         return trials
 
     def update(self, completed_trial: Trial, all_trials):
-        """
-        Feedback Loop: Update the Brain with the results.
-        """
-        if completed_trial.state != "COMPLETED" or not completed_trial.final_measurement:
+        if completed_trial.state != TrialState.COMPLETED or not completed_trial.final_measurement:
             return
-
-        # Extract metric
-        # Assuming the first metric is the objective
-        metrics = completed_trial.final_measurement.metrics
-        main_metric = list(metrics.values())[0] if metrics else 0.0
-        
-        t_params = completed_trial.parameters
-        
-        # Store in Brain's Knowledge Base
-        self.brain.store_experience(self.dna, t_params, main_metric)
-        
-        # Online Learning? 
-        # Ideally we retrain the brain here, but for now we just store.
+        main_metric = float(completed_trial.final_measurement)
+        self.brain.store_experience(self.dna, completed_trial.parameters, main_metric)

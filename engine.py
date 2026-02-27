@@ -1,5 +1,6 @@
 
 # engine.py
+"""DynamicTrainer — BATCH MODE (returns dict). Used by: bilevel.py, pipeline.py. DO NOT import in Streamlit UI — use engine_stream.py instead."""
 import torch
 import torch.nn as nn
 import torch.optim as optim
