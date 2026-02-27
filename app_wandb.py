@@ -13,7 +13,7 @@ from data_analyzer import DatasetAnalyzer
 from brain import MetaLearner
 from engine_stream import DynamicTrainer # Updated Engine
 from algorithm_recommender import recommend_algorithms
-from sklearn_engine import train_and_package, package_to_joblib_bytes
+from sklearn_engine import train_and_package, train_and_package_staged, package_to_joblib_bytes
 
 # === UI CONFIGURATION ===
 st.set_page_config(page_title="MetaTune Workspace", page_icon="⚡", layout="wide")
@@ -846,16 +846,91 @@ if uploaded_file:
 </div>
 """, unsafe_allow_html=True)
 
-            # ── ACTUAL TRAINING ───────────────────────────────────────────────
-            with st.spinner(""):
-                package, training_results = train_and_package(
+            # ── STAGED TRAINING — each yield fires when real work begins ──────
+            _stage_defs = [('🧬','DATA PREP'),('🏗️','BUILDING'),('🎯','FITTING'),('📦','PACKAGING')]
+            _log_lines = [
+                '▶ Initializing preprocessing pipeline...',
+                '▶ Splitting train/validation (80/20)...',
+                f'◈ Anti-overfitting regularization: ACTIVE',
+                f'▶ Fitting {selected_algo_label.upper()} estimator...',
+                '▶ Packaging deployable artifact...',
+            ]
+            _stage_log_counts = {0: 2, 1: 3, 2: 4, 3: 5}
+
+            package = None
+            training_results = None
+            payload = None
+
+            try:
+                for _si in train_and_package_staged(
                     data_path="temp.csv",
                     dna=dna,
                     algorithm_id=selected_algorithm_id,
                     target_col=(target_col if target_col else None),
                     hyperparameters=params,
-                )
-                payload = package_to_joblib_bytes(package)
+                ):
+                    if _si['done']:
+                        package = _si['package']
+                        training_results = _si['results']
+                        payload = package_to_joblib_bytes(package)
+                    elif _si['stage'] > 0:
+                        # Stage 0 is already rendered by the static block above — only
+                        # redraw for stages 1, 2, 3 so the boxes advance honestly.
+                        _a = _si['stage']
+                        _visible = _stage_log_counts.get(_a, 2)
+                        _boxes = ''.join([
+                            f'<div style="background:{"rgba(0,255,136,0.08)" if i==_a else ("rgba(0,255,136,0.03)" if i<_a else "rgba(255,255,255,0.02)")}; border:1px solid {"var(--dna-green)" if i==_a else ("rgba(0,255,136,0.25)" if i<_a else "var(--border)")}; padding:14px; text-align:center; {"animation:neuralPulse 2s infinite;" if i==_a else ""}"><div style="font-size:18px; margin-bottom:6px;">{em}</div><div style="color:{"var(--dna-green)" if i==_a else ("rgba(0,255,136,0.45)" if i<_a else "var(--text-dim)")}; font-size:8px; letter-spacing:2px;">{"\u2713 " if i<_a else ""}{lbl}</div></div>'
+                            for i,(em,lbl) in enumerate(_stage_defs)
+                        ])
+                        _logs = ''.join([
+                            f'<div style="color:{"var(--neural-amber)" if "Anti-overfitting" in _log_lines[j] else "#00FF41"}; {"animation:matrixFlicker 0.5s infinite;" if j==_visible-1 else ""}">{_log_lines[j]}</div>'
+                            for j in range(min(_visible, len(_log_lines)))
+                        ])
+                        launch_container.markdown(f"""
+<div style="
+  background: linear-gradient(135deg, var(--void) 0%, var(--deep) 100%);
+  border: 1px solid rgba(0,255,136,0.2);
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+  font-family: var(--font-mono);
+">
+  <div style="position:absolute; top:0; left:0; right:0; bottom:0;
+    background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
+    animation:scanSweep 2s linear infinite; pointer-events:none;"></div>
+
+  <div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
+    <div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+      <div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
+      <div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
+      <span style="font-size:16px; position:relative; z-index:1;">⧆</span>
+    </div>
+    <div>
+      <div style="color:var(--dna-green); font-size:14px; font-weight:700; letter-spacing:4px; text-transform:uppercase;">NEURAL ENGINE IGNITED</div>
+      <div style="color:var(--text-dim); font-size:9px; letter-spacing:3px; margin-top:4px;">
+        TRIAL #{active_trial.id} · {selected_algo_label.upper()} · SKLEARN PATH · STAGE {_a+1}/4: {_si['stage_name']}
+      </div>
+    </div>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+      <span style="width:8px; height:8px; background:#00FF41; border-radius:50%; display:inline-block; box-shadow:0 0 10px #00FF41; animation:heartbeat 1.5s infinite;"></span>
+      <span style="color:#00FF41; font-size:9px; letter-spacing:3px;">LIVE</span>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">{_boxes}</div>
+
+  <div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
+    <div style="height:100%; width:{(_a+1)*25}%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan)); box-shadow:0 0 10px rgba(0,255,136,0.5);"></div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; line-height:2;">{_logs}</div>
+</div>
+""", unsafe_allow_html=True)
+
+            except Exception as _sklearn_err:
+                st.error(f"⚠️ Sklearn training error: {_sklearn_err}")
+                training_results = None
 
             launch_container.empty()
 
@@ -994,6 +1069,7 @@ if uploaded_file:
 """, unsafe_allow_html=True)
             
             # Layout for Live Graphs
+            pytorch_header = st.empty()
             g1, g2 = st.columns(2)
             with g1: 
                 st.markdown('<div style="font-family:var(--font-mono);font-size:9px;letter-spacing:4px;color:var(--bio-cyan);text-transform:uppercase;margin-bottom:8px;">◈ LOSS CONVERGENCE</div>', unsafe_allow_html=True)
@@ -1021,8 +1097,7 @@ if uploaded_file:
 
                     final_metric = stats['metric']
 
-                    if stats.get('adaptation'):
-                        st.toast(stats['adaptation'], icon="🧠")
+                    pass  # adaptation messages suppressed
 
                     fig_loss = go.Figure()
                     fig_loss.add_trace(go.Scatter(
@@ -1059,6 +1134,41 @@ if uploaded_file:
                     )
                     reg_chart.plotly_chart(fig_reg, width='stretch', key=f"reg_{stats['epoch']}")
 
+                    pytorch_header.markdown(f"""
+<div style="
+  background: rgba(8,11,20,0.9);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--bio-cyan);
+  padding: 14px 24px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  font-family: var(--font-mono);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+">
+  <div style="text-align:center; border-right:1px solid var(--border); padding-right:12px;">
+    <div style="font-size:8px; letter-spacing:3px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;">EPOCH</div>
+    <div style="font-family:var(--font-display); font-size:22px; color:var(--bio-cyan); line-height:1;">{stats['epoch']}<span style="font-size:10px; color:var(--text-dim);">/30</span></div>
+  </div>
+  <div style="text-align:center; border-right:1px solid var(--border); padding-right:12px;">
+    <div style="font-size:8px; letter-spacing:3px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;">TRAIN LOSS</div>
+    <div style="font-family:var(--font-display); font-size:20px; color:#00FFFF; line-height:1;">{stats['train_loss']:.4f}</div>
+  </div>
+  <div style="text-align:center; border-right:1px solid var(--border); padding-right:12px;">
+    <div style="font-size:8px; letter-spacing:3px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;">VAL LOSS</div>
+    <div style="font-family:var(--font-display); font-size:20px; color:#FF00FF; line-height:1;">{stats['val_loss']:.4f}</div>
+  </div>
+  <div style="text-align:center; border-right:1px solid var(--border); padding-right:12px;">
+    <div style="font-size:8px; letter-spacing:3px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;">METRIC</div>
+    <div style="font-family:var(--font-display); font-size:20px; color:var(--dna-green); line-height:1;">{stats['metric']:.4f}</div>
+  </div>
+  <div style="text-align:center;">
+    <div style="font-size:8px; letter-spacing:3px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;">LEARN RATE</div>
+    <div style="font-family:var(--font-display); font-size:18px; color:var(--neural-amber); line-height:1;">{stats['current_lr']:.2e}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
                     progress_bar.progress(min(stats['epoch'] / 30, 1.0))
                     time.sleep(0.02)
 

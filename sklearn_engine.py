@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import time
 from typing import Any, Dict, Optional, Tuple
 
 import joblib
@@ -199,6 +200,113 @@ def train_and_package(
     return_dict.update(metrics)
 
     return package, return_dict
+
+
+def train_and_package_staged(
+    data_path: str,
+    dna: Dict[str, Any],
+    algorithm_id: str,
+    target_col: Optional[str] = None,
+    hyperparameters: Optional[Dict[str, Any]] = None,
+    **kwargs
+):
+    """
+    Generator version of train_and_package.
+    Yields {'stage': int, 'stage_name': str, 'done': False} at the start of each
+    real phase, then a final {'done': True, 'package': ..., 'results': ...} dict.
+    Each yield boundary maps to actual work — no fake timing.
+    """
+
+    # ── STAGE 0: DATA PREP ──────────────────────────────────────────────────
+    yield {'stage': 0, 'stage_name': 'DATA PREP', 'done': False}
+
+    df = pd.read_csv(data_path)
+    if not target_col or target_col == "":
+        target_col = df.columns[-1]
+
+    X = df.drop(columns=[target_col])
+    y = df[target_col]
+    task_type = dna.get("task_type", "classification")
+
+    stratify = None
+    if task_type == "classification":
+        if y.nunique() < 2:
+            raise ValueError("Classification requires at least 2 classes in the dataset.")
+        stratify = y if y.nunique() > 1 else None
+
+    X_train_raw, X_val_raw, y_train_raw, y_val_raw = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=stratify
+    )
+
+    le: Optional[LabelEncoder] = None
+    if task_type == "classification":
+        le = LabelEncoder()
+        y_train = le.fit_transform(y_train_raw)
+        y_val_np = y_val_raw.to_numpy()
+        y_val_masked = np.array([x if x in le.classes_ else le.classes_[0] for x in y_val_np])
+        y_val = le.transform(y_val_masked)
+    else:
+        y_train = y_train_raw.to_numpy().astype(np.float32)
+        y_val = y_val_raw.to_numpy().astype(np.float32)
+
+    # ── STAGE 1: BUILDING ───────────────────────────────────────────────────
+    yield {'stage': 1, 'stage_name': 'BUILDING', 'done': False}
+
+    preprocessor = _build_preprocessor(X_train_raw)
+    search_space = kwargs.get('search_space', None)
+    estimator = build_estimator(
+        algorithm_id=algorithm_id,
+        task_type=task_type,
+        hyperparameters=hyperparameters,
+        search_space=search_space,
+    )
+    model = Pipeline(steps=[("preprocessor", preprocessor), ("model", estimator)])
+
+    # ── STAGE 2: FITTING ────────────────────────────────────────────────────
+    yield {'stage': 2, 'stage_name': 'FITTING', 'done': False}
+
+    _start = time.time()
+    model.fit(X_train_raw, y_train)
+    preds = model.predict(X_val_raw)
+    elapsed = time.time() - _start
+
+    if task_type == "classification":
+        metric_value = float(accuracy_score(y_val, preds))
+        metric_name = "Accuracy"
+        metrics = {"accuracy": metric_value}
+    else:
+        metric_value = float(r2_score(y_val, preds))
+        metric_name = "R2 Score"
+        metrics = {"r2": metric_value}
+
+    # ── STAGE 3: PACKAGING ──────────────────────────────────────────────────
+    yield {'stage': 3, 'stage_name': 'PACKAGING', 'done': False}
+
+    package = {
+        "model": model,
+        "label_encoder": le,
+        "target_col": target_col,
+        "task_type": task_type,
+        "algorithm_id": algorithm_id,
+    }
+
+    return_dict = {
+        "final_metric": metric_value,
+        "metric_name": metric_name,
+        "training_time": elapsed,
+        "package_path": f"metatune_{algorithm_id}_package.joblib",
+        "model_type": algorithm_id,
+    }
+    return_dict.update(metrics)
+
+    # ── COMPLETE ────────────────────────────────────────────────────────────
+    yield {
+        'stage': 4,
+        'stage_name': 'COMPLETE',
+        'done': True,
+        'package': package,
+        'results': return_dict,
+    }
 
 
 def package_to_joblib_bytes(package: Dict[str, Any]) -> bytes:
