@@ -97,6 +97,8 @@ class DynamicTrainer:
         X_train_raw, X_val_raw, y_train_raw, y_val_raw = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=stratify
         )
+        X_train_raw = X_train_raw.copy()
+        X_val_raw = X_val_raw.copy()
 
         # 2. Process Numerical Columns
         # We learn the median/mean ONLY from the Training set

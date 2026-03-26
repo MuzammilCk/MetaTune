@@ -53,8 +53,9 @@ class DynamicTrainer:
         
         # Protect Regression NaN targets
         if self.dna['task_type'] == 'regression':
-            y_train_raw = y_train_raw.fillna(y_train_raw.median())
-            y_val_raw = y_val_raw.fillna(y_train_raw.median())
+            train_median = y_train_raw.median()  # Compute BEFORE modifying
+            y_train_raw = y_train_raw.fillna(train_median)
+            y_val_raw = y_val_raw.fillna(train_median)  # Use train median to avoid leakage
 
         # 3. Define Preprocessing Pipeline
         # Identify numeric and categorical columns

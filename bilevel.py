@@ -27,8 +27,8 @@ from engine import DynamicTrainer
 @dataclass
 class BilevelConfig:
     min_trials: int = 5           # Vizier: tuning_min_num_trials
-    max_outer_iterations: int = 10 # Vizier: (max-min)/num_per_tuning
-    population_size: int = 3      # Vizier: pool_size
+    max_outer_iterations: int = 5  # Reduced from 10 for faster CI/demo runs
+    population_size: int = 2       # Reduced from 3 for faster CI/demo runs
     perturbation: float = 0.1     # Vizier: FireflyAlgorithmConfig.perturbation
     perturbation_lower_bound: float = 0.01  # Vizier: perturbation_lower_bound
 
@@ -59,10 +59,13 @@ class BilevelOptimizer:
         self.state = "TUNE"
         print(f"   [STATE: {self.state}] Starting evolutionary search for {self.config.max_outer_iterations} outer iterations...")
         search_hint_str = dataset_dna.get("vizier_search_space_hint", "{}")
-        try:
-            search_hint = ast.literal_eval(search_hint_str) if search_hint_str else {}
-        except Exception:
-            search_hint = {}
+        if isinstance(search_hint_str, dict):
+            search_hint = search_hint_str
+        else:
+            try:
+                search_hint = ast.literal_eval(search_hint_str) if search_hint_str else {}
+            except Exception:
+                search_hint = {}
 
         for iteration in range(self.config.max_outer_iterations):
             best_anchor = self.get_best_hyperparams()
@@ -87,7 +90,9 @@ class BilevelOptimizer:
         return best_found
     
     def _evaluate_hyperparams(self, hyperparams: dict, X_train, y_train, X_val, y_val, task_type: str) -> float:
-        """Inner loop: train with given hyperparams, return val metric."""
+        """Inner loop: train with given hyperparams, return val metric.
+        NOTE: X_train/y_train/X_val/y_val are accepted for API consistency
+        but not used — DynamicTrainer re-reads data_path with random_state=42."""
         # DynamicTrainer internally reads temp.csv. We use it to match MetaTune architecture.
         trainer = DynamicTrainer(data_path=self._data_path, dataset_dna=self.current_dna, hyperparameters=hyperparams)
         result = trainer.run(epochs=10)

@@ -256,6 +256,9 @@ def _prepare_data(data_path: str, dna: dict, target_col: Optional[str]):
 
 # ── Public API ───────────────────────────────────────────────────────────────
 
+PYTORCH_IDS = {"pytorch_mlp"}
+
+
 def train_and_package(
     data_path: str,
     dna: Dict[str, Any],
@@ -264,6 +267,12 @@ def train_and_package(
     hyperparameters: Optional[Dict[str, Any]] = None,
     **kwargs,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+
+    if algorithm_id in PYTORCH_IDS:
+        raise ValueError(
+            f"'{algorithm_id}' is a PyTorch model — use engine_stream.DynamicTrainer, "
+            "not sklearn_engine.train_and_package."
+        )
 
     X_train_raw, X_val_raw, y_train, y_val, le, task_type, target_col = \
         _prepare_data(data_path, dna, target_col)

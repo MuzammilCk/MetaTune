@@ -5,6 +5,7 @@ torch>=1.10.0
 scikit-learn>=1.0.0
 matplotlib>=3.4.0
 joblib>=1.1.0
-wandb>=0.12.0
-streamlit>=1.0.0
+streamlit>=1.30.0
 plotly>=5.0.0
+# Optional — XGBoost algorithms fall back to HistGradientBoosting if not installed
+# xgboost>=1.6.0

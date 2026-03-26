@@ -20,8 +20,9 @@ class Measurement:
         self.elapsed_secs = elapsed_secs
 
 class Trial:
-    def __init__(self, parameters: Dict[str, Any], trial_id: int = None, id: int = None):
-        self.id = trial_id if trial_id is not None else id
+    def __init__(self, parameters: Dict[str, Any], id: int = None, trial_id: int = None):
+        # trial_id is deprecated — use id
+        self.id = id if id is not None else trial_id
         self.parameters = parameters
         self.state = TrialState.REQUESTED
         self.final_measurement: float = None

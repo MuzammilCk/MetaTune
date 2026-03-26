@@ -19,6 +19,7 @@ class MetaTunePipeline:
     def __init__(self, data_path, target_col=None):
         self.data_path = data_path; self.target_col = target_col
         self.dataset_dna = None; self.predicted_params = None; self.training_results = None
+        self.final_params = None  # Tracks the params actually used for training
         self.meta_learner = MetaLearner()
         
     def run(self, train_brain=False, epochs=20): # Defaults to 20 for speed
@@ -69,6 +70,7 @@ class MetaTunePipeline:
             optimizer = BilevelOptimizer(meta_learner=self.meta_learner, config=config)
             
             best_params = optimizer.optimize(self.dataset_dna, X_train, y_train, X_val, y_val, task_type, data_path=self.data_path)
+            self.final_params = best_params
             trainer = DynamicTrainer(self.data_path, self.dataset_dna, best_params, target_col=self.target_col)
             self.training_results = trainer.run(epochs=epochs)
             
@@ -84,7 +86,10 @@ class MetaTunePipeline:
                 except Exception as e:
                     print(f"⚠️  Trial tracking failed: {e}")
                     
-        except ImportError as e:
+        except Exception as e:
+            if not isinstance(e, ImportError):
+                print(f"⚠️  Bilevel optimization failed ({type(e).__name__}: {e}). Falling back to direct training.")
+            self.final_params = self.predicted_params
             trainer = DynamicTrainer(self.data_path, self.dataset_dna, self.predicted_params, target_col=self.target_col)
             self.training_results = trainer.run(epochs=epochs)
         
@@ -93,7 +98,7 @@ class MetaTunePipeline:
         final_metric = self.training_results['final_metric']
         print(f"   ✓ Run Performance ({self.training_results['metric_name']}): {final_metric:.4f}")
         
-        self.meta_learner.store_experience(self.dataset_dna, self.predicted_params, final_metric)
+        self.meta_learner.store_experience(self.dataset_dna, self.final_params, final_metric)
         
         self._generate_report(); self._visualize()
         return self.training_results

@@ -5,7 +5,11 @@ import streamlit.components.v1 as components
 import plotly.express as px
 import time
 import os
-import torch
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 import textwrap
 import uuid
 
@@ -771,16 +775,16 @@ if uploaded_file:
         ">
           <div style="font-family:var(--font-mono); font-size:8px; letter-spacing:4px; color:var(--text-dim); margin-bottom:14px; text-transform:uppercase;">GENOME READOUT</div>
 
-          {''.join([
+          {(lambda _safe: ''.join([
             f'''<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; letter-spacing:1px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;"><span>{name}</span><span style="color:var(--text-secondary);">{val:.4f}</span></div><div style="background:rgba(26,37,64,0.6); height:2px; border-radius:1px; overflow:hidden;"><div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div></div></div>'''
             for name, val, pct, color1, color2 in [
-              ('TARGET ENTROPY',    dna.get('target_entropy',0),         min(dna.get('target_entropy',0)/2,1),        '#00FF88','#00D4FF'),
-              ('SPARSITY',          dna.get('sparsity',0),               min(dna.get('sparsity',0),1),                '#FFB800','#FF006E'),
-              ('IMBALANCE RATIO',   dna.get('class_imbalance_ratio',0),  min(dna.get('class_imbalance_ratio',0)/10,1),'#FF006E','#9B5DE5'),
-              ('DIMENSIONALITY',    dna.get('dimensionality',0),         min(dna.get('dimensionality',0),1),          '#00D4FF','#00FF88'),
-              ('TASK DIFFICULTY',   dna.get('task_difficulty_score',0),  min(dna.get('task_difficulty_score',0)/3,1), '#9B5DE5','#FF006E'),
+              ('TARGET ENTROPY',    _safe('target_entropy'),         min(_safe('target_entropy')/2,1),        '#00FF88','#00D4FF'),
+              ('SPARSITY',          _safe('sparsity'),               min(_safe('sparsity'),1),                '#FFB800','#FF006E'),
+              ('IMBALANCE RATIO',   _safe('class_imbalance_ratio'),  min(_safe('class_imbalance_ratio')/10,1),'#FF006E','#9B5DE5'),
+              ('DIMENSIONALITY',    _safe('dimensionality'),         min(_safe('dimensionality'),1),          '#00D4FF','#00FF88'),
+              ('TASK DIFFICULTY',   _safe('task_difficulty_score'),  min(_safe('task_difficulty_score')/3,1), '#9B5DE5','#FF006E'),
             ]
-          ])}
+          ]))(lambda k: float(dna.get(k, 0)) if dna.get(k, 0) == dna.get(k, 0) else 0.0)}
 
           <div style="
             margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
@@ -1186,7 +1190,7 @@ if uploaded_file:
 """, unsafe_allow_html=True)
 
                 # ── VIZIER TRIAL TRACKING ──────────────────────────────────────
-                if 'study' not in st.session_state:
+                if st.session_state.get('study') is None:
                     from vizier_stub import Study
                     st.session_state['study'] = Study(name="metatune_session")
                 from vizier_stub import Trial
@@ -1204,79 +1208,15 @@ if uploaded_file:
                 designer.update(active_trial, study.trials)
                 status_indicator.success(f"Trial #{active_trial.id} Completed")
 
-                # ── BEST RUN PANEL ─────────────────────────────────────────────
-                if 'study' in st.session_state:
-                    _optimal = st.session_state['study'].optimal_trials()
-                    if _optimal:
-                        _best = _optimal[0]
-                        st.markdown(f"""
-    <div style="
-      background:linear-gradient(135deg,rgba(0,255,65,0.04),var(--void));
-      border:1px solid rgba(0,255,65,0.2); border-left:4px solid #00FF41;
-      padding:20px 24px; margin-top:16px;
-      display:flex; align-items:center; gap:20px;
-      clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);
-    ">
-      <!-- Animated scan line -->
-      <div style="
-        position:absolute; top:0; left:0; right:0; bottom:0;
-        background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
-        animation:scanSweep 2s linear infinite; pointer-events:none;
-      "></div>
 
-      <!-- Header row -->
-      <div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
-        <!-- Orbital spinner -->
-        <div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-          <div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
-          <div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
-          <span style="font-size:16px; position:relative; z-index:1;">⌬</span>
-        </div>
-        <div>
-          <div style="color:var(--dna-green); font-size:14px; font-weight:700; letter-spacing:4px; text-transform:uppercase; animation:glitchText 4s infinite;">NEURAL ENGINE IGNITED</div>
-          <div style="color:var(--text-dim); font-size:9px; letter-spacing:3px; margin-top:4px;">
-            TRIAL #{active_trial.id} · {selected_algo_label.upper()} · DEPLOYABLE SKLEARN PATH
-          </div>
-        </div>
-        <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-          <span style="width:8px; height:8px; background:#00FF41; border-radius:50%; display:inline-block; box-shadow:0 0 10px #00FF41; animation:heartbeat 1.5s infinite;"></span>
-          <span style="color:#00FF41; font-size:9px; letter-spacing:3px;">LIVE</span>
-        </div>
-      </div>
-
-      <!-- Phase sequence -->
-      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">
-        {''.join([
-          f'<div style="background:{"rgba(0,255,136,0.08)" if i==0 else "rgba(255,255,255,0.02)"}; border:1px solid {"var(--dna-green)" if i==0 else "var(--border)"}; padding:14px; text-align:center; {"animation:neuralPulse 2s infinite;" if i==0 else ""}"><div style="font-size:18px; margin-bottom:6px;">{em}</div><div style="color:{"var(--dna-green)" if i==0 else "var(--text-dim)"}; font-size:8px; letter-spacing:2px;">{label}</div></div>'
-          for i,(em,label) in enumerate([('🧬','DATA PREP'),('🏗️','BUILDING'),('🎯','FITTING'),('📦','PACKAGING')])
-        ])}
-      </div>
-
-      <!-- Animated progress bar -->
-      <div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
-        <div style="height:100%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan),var(--dna-green)); background-size:200% 100%; animation:borderTrace 1.5s linear infinite;"></div>
-      </div>
-
-      <!-- Terminal readout -->
-      <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; color:#00FF41; line-height:2;">
-        <div style="animation:matrixFlicker 0.5s infinite;">▶ Initializing preprocessing pipeline...</div>
-        <div style="animation:matrixFlicker 0.5s 0.15s infinite; opacity:0.8;">▶ Splitting train/validation (80/20)...</div>
-        <div style="color:var(--neural-amber); animation:matrixFlicker 0.6s 0.3s infinite;">◈ Anti-overfitting regularization: ACTIVE</div>
-        <div style="animation:matrixFlicker 0.5s 0.45s infinite; opacity:0.6;">▶ Fitting {selected_algo_label.upper()} estimator...</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-                # ── ACTUAL TRAINING (runs while animation shows) ───────────────────
-                with st.spinner(""):
-                    package, training_results = train_and_package(
-                        data_path=st.session_state['temp_path'],
-                        dna=dna,
-                        algorithm_id=selected_algorithm_id,
-                        target_col=(target_col if target_col else None),
-                        hyperparameters=params,
+                # ── DOWNLOAD BUTTON ───────────────────────────────────────────
+                if payload:
+                    st.download_button(
+                        label="⬇ DOWNLOAD .JOBLIB ARTIFACT",
+                        data=payload,
+                        file_name=f"metatune_{selected_algorithm_id}_trial{active_trial.id}.joblib",
+                        mime="application/octet-stream",
                     )
-                    payload = package_to_joblib_bytes(package)
 
             else:
                 st.markdown("""

@@ -63,7 +63,11 @@ if __name__ == "__main__":
     # 3. Simulate Learning (Run 4 more times to pass the threshold of 5)
     print("\n🔄 Simulating Experience Accumulation...")
     for i in range(4):
-        os.system("python pipeline.py test_classification.csv --target target_cls --epochs 1 > nul 2>&1")
+        import subprocess
+        subprocess.run(
+            ["python", "pipeline.py", "test_classification.csv", "--target", "target_cls", "--epochs", "1"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         print(f"   Run {i+3} complete.")
         
     check_knowledge_base(6)

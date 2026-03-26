@@ -35,7 +35,9 @@ class MetaLearningDesigner(Designer):
         return trials
 
     def update(self, completed_trial: Trial, all_trials):
-        if completed_trial.state != TrialState.COMPLETED or not completed_trial.final_measurement:
+        if completed_trial.state != TrialState.COMPLETED:
+            return
+        if completed_trial.final_measurement is None:
             return
         main_metric = float(completed_trial.final_measurement)
         self.brain.store_experience(self.dna, completed_trial.parameters, main_metric)

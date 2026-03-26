@@ -189,7 +189,7 @@ class DatasetAnalyzer:
         if self.meta_features.get('task_type') == "regression":
             hint["dropout"] = [0.0, 0.3]
             
-        self.meta_features["vizier_search_space_hint"] = str(hint)
+        self.meta_features["vizier_search_space_hint"] = hint  # Store as real dict, not str
 
         return self.meta_features
 

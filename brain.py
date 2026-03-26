@@ -123,6 +123,11 @@ class MetaLearner:
                     if col not in df_row.columns:
                         df_row[col] = 0
 
+                # Warn if the new row has columns not in the existing KB
+                new_cols = set(df_row.columns) - set(existing_columns)
+                if new_cols:
+                    print(f"⚠️  New KB columns {new_cols} dropped to match existing schema.")
+
                 # Align strictly to existing CSV schema/order before append
                 df_row = df_row.reindex(columns=existing_columns)
 
@@ -149,11 +154,21 @@ class MetaLearner:
         # We assume higher metric is better (Accuracy, R2).
         median_perf = df['final_metric'].median()
         df_elite = df[df['final_metric'] >= median_perf]
+        df_elite = df_elite.copy()  # Prevent SettingWithCopyWarning on views
         
         print(f"\n🎓 Training Meta-Brain on ELITE History ({len(df_elite)}/{len(df)} records > {median_perf:.4f})...")
         
         if len(df_elite) < 2:
-            df_elite = df # Fallback if filtering is too aggressive
+            df_elite = df.copy() # Fallback if filtering is too aggressive
+        
+        # Guard: derive optimizer_type_code from optimizer_type for legacy KBs
+        if 'optimizer_type_code' not in df_elite.columns:
+            if 'optimizer_type' in df_elite.columns:
+                df_elite['optimizer_type_code'] = df_elite['optimizer_type'].apply(
+                    lambda x: 1 if x == 'adam' else 0
+                )
+            else:
+                df_elite['optimizer_type_code'] = 1  # default to adam
         
         # Prepare Data
         for f in self.input_features: 
@@ -224,11 +239,14 @@ class MetaLearner:
         hint_str = dataset_dna.get("vizier_search_space_hint", "{}")
         return self._clamp_to_search_space(predictions, hint_str)
         
-    def _clamp_to_search_space(self, predictions: dict, hint_str: str) -> dict:
+    def _clamp_to_search_space(self, predictions: dict, hint) -> dict:
         """Clamp predicted hyperparameters to the Vizier search space hint bounds."""
         try:
-            import ast
-            hint = ast.literal_eval(hint_str) if hint_str else {}
+            if isinstance(hint, str):
+                import ast
+                hint = ast.literal_eval(hint) if hint else {}
+            elif not isinstance(hint, dict):
+                hint = {}
             for param, bounds in hint.items():
                 if param in predictions and isinstance(bounds, list) and len(bounds) == 2:
                     predictions[param] = float(np.clip(predictions[param], bounds[0], bounds[1]))
