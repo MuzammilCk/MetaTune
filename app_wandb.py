@@ -114,6 +114,7 @@ if not st.session_state['intro_done']:
 # Custom CSS for WandB Aesthetic
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Share+Tech+Mono&family=Bebas+Neue&display=swap" rel="stylesheet">
 
 <style>
@@ -167,7 +168,8 @@ div[data-testid="stMetric"] {
 }
 div[data-testid="stMetric"]:hover {
   border-left-color: var(--bio-cyan) !important;
-  transform: translateY(-2px) !important;
+  transform: translateY(-4px) scale(1.02) !important;
+  filter: drop-shadow(0 8px 16px rgba(0, 255, 136, 0.1)) !important;
 }
 div[data-testid="stMetricLabel"] {
   font-family: var(--font-mono) !important;
@@ -209,9 +211,12 @@ h3 { font-family: var(--font-tech) !important; font-weight: 600 !important; lett
 }
 .stButton > button:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 0 40px rgba(255, 0, 110, 0.5) !important;
+  filter: drop-shadow(0 0 20px rgba(255, 0, 110, 0.5)) !important;
 }
-.stButton > button:active { transform: translateY(0) !important; }
+.stButton > button:active { 
+  transform: translateY(2px) scale(0.98) !important; 
+  filter: drop-shadow(0 0 5px rgba(255, 0, 110, 0.8)) !important; 
+}
 
 /* ═══════════════════════════════════════
    DOWNLOAD BUTTON
@@ -225,11 +230,16 @@ h3 { font-family: var(--font-tech) !important; font-weight: 600 !important; lett
   color: var(--dna-green) !important;
   border: 1px solid var(--dna-green) !important;
   border-radius: 0 !important;
-  transition: all 0.3s !important;
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important;
 }
 .stDownloadButton > button:hover {
   background: rgba(0,255,136,0.08) !important;
-  box-shadow: 0 0 20px rgba(0,255,136,0.3) !important;
+  transform: translateY(-2px) !important;
+  filter: drop-shadow(0 0 10px rgba(0,255,136,0.3)) !important;
+}
+.stDownloadButton > button:active {
+  transform: translateY(2px) scale(0.98) !important;
+  filter: drop-shadow(0 0 5px rgba(0,255,136,0.8)) !important;
 }
 
 /* ═══════════════════════════════════════
@@ -332,12 +342,12 @@ h3 { font-family: var(--font-tech) !important; font-weight: 600 !important; lett
    ANIMATIONS
 ═══════════════════════════════════════ */
 @keyframes ignitePulse {
-  0%, 100% { box-shadow: 0 0 10px rgba(255,0,110,0.3); }
-  50% { box-shadow: 0 0 30px rgba(255,0,110,0.7), 0 0 60px rgba(155,0,255,0.3); }
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(255,0,110,0.3)); }
+  50% { filter: drop-shadow(0 0 15px rgba(255,0,110,0.7)) drop-shadow(0 0 30px rgba(155,0,255,0.3)); }
 }
 @keyframes neuralPulse {
-  0%, 100% { box-shadow: 0 0 5px var(--dna-green), 0 0 15px var(--dna-green); }
-  50% { box-shadow: 0 0 20px var(--dna-green), 0 0 50px var(--dna-green); }
+  0%, 100% { filter: drop-shadow(0 0 3px var(--dna-green)) drop-shadow(0 0 8px var(--dna-green)); }
+  50% { filter: drop-shadow(0 0 10px var(--dna-green)) drop-shadow(0 0 25px var(--dna-green)); }
 }
 @keyframes scanSweep {
   0% { transform: translateX(-100%); }
@@ -404,6 +414,17 @@ h3 { font-family: var(--font-tech) !important; font-weight: 600 !important; lett
   margin-bottom: 0 !important;
   animation: slideUpFadeIn 0.8s ease-out !important;
 }
+
+/* ═══════════════════════════════════════
+   ACCESSIBILITY
+═══════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -425,20 +446,20 @@ with st.sidebar:
             st.session_state[_k] = _v
 
     idle_html = '''
-    <div style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; color:var(--dna-green); padding:10px 0; display:flex; align-items:center; gap:8px;">
-      <span style="width:6px; height:6px; background:var(--dna-green); border-radius:50%; display:inline-block; box-shadow:0 0 8px var(--dna-green); animation: heartbeat 2s infinite;"></span>
+    <div role="status" aria-label="Status: Idle" style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; color:var(--dna-green); padding:10px 0; display:flex; align-items:center; gap:8px;">
+      <span aria-hidden="true" style="width:6px; height:6px; background:var(--dna-green); border-radius:50%; display:inline-block; box-shadow:0 0 8px var(--dna-green); animation: heartbeat 2s infinite;"></span>
       SYSTEM IDLE — AWAITING DATA
     </div>
     '''
     training_html = '''
-    <div style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--neural-amber);padding:8px 0;display:flex;align-items:center;gap:8px;">
-      <span style="width:6px;height:6px;background:var(--neural-amber);border-radius:50%;box-shadow:0 0 8px var(--neural-amber);display:inline-block;animation:heartbeat 1.5s infinite;"></span>
+    <div role="status" aria-label="Status: Training" style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--neural-amber);padding:8px 0;display:flex;align-items:center;gap:8px;">
+      <span aria-hidden="true" style="width:6px;height:6px;background:var(--neural-amber);border-radius:50%;box-shadow:0 0 8px var(--neural-amber);display:inline-block;animation:heartbeat 1.5s infinite;"></span>
       TRAINING IN PROGRESS...
     </div>
     '''
     error_html = '''
-    <div style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; color:var(--quantum-magenta); padding:10px 0; display:flex; align-items:center; gap:8px;">
-      <span style="width:6px; height:6px; background:var(--quantum-magenta); border-radius:50%; display:inline-block; box-shadow:0 0 8px var(--quantum-magenta);"></span>
+    <div role="status" aria-label="Status: Error" style="font-family:var(--font-mono); font-size:10px; letter-spacing:2px; color:var(--quantum-magenta); padding:10px 0; display:flex; align-items:center; gap:8px;">
+      <span aria-hidden="true" style="width:6px; height:6px; background:var(--quantum-magenta); border-radius:50%; display:inline-block; box-shadow:0 0 8px var(--quantum-magenta);"></span>
       SYSTEM ERROR — CHECK LOGS
     </div>
     '''
@@ -493,7 +514,7 @@ with st.sidebar:
         st.markdown('''<div style="font-family:var(--font-mono); font-size:9px; letter-spacing:4px; color:var(--text-dim); text-transform:uppercase; margin-bottom:12px; margin-top:24px;">◈ TARGET COLUMN</div>''', unsafe_allow_html=True)
         columns = pd.read_csv(st.session_state['temp_path'], nrows=0, encoding=st.session_state['file_encoding']).columns.tolist()
         options = ["⟳ AUTO-DETECT (last column)"] + columns
-        selected = st.selectbox("Select Target", options=options, label_visibility="collapsed")
+        selected = st.selectbox("Select Target", options=options, label_visibility="hidden")
         target_col = None if selected == "⟳ AUTO-DETECT (last column)" else selected
 
         if target_col is not None and target_col not in columns:
@@ -575,66 +596,15 @@ PROMPT_HTML = """
 </div>
 """
 
-HERO_HTML_ORIGINAL = """
-<div style="
-  padding: 48px 0 32px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 40px;
-  position: relative;
-  overflow: hidden;
-">
-  <!-- Scan line effect -->
-  <div style="
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(0,255,136,0.03) 50%, transparent 100%);
-    animation: scanSweep 4s linear infinite;
-    pointer-events: none;
-  "></div>
-
-  <div style="
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 6px;
-    color: var(--dna-green);
-    text-transform: uppercase;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  ">
-    <span style="display:inline-block; width:40px; height:1px; background:var(--dna-green); box-shadow:0 0 8px var(--dna-green);"></span>
-    BILEVEL OPTIMIZATION ENGINE — DATASET INTELLIGENCE SYSTEM
-  </div>
-
-  <div style="
-    font-family: var(--font-display);
-    font-size: clamp(48px, 6vw, 96px);
-    line-height: 0.92;
-    letter-spacing: 2px;
-    color: var(--text-primary);
-    animation: glitchText 8s infinite;
-  ">
-    META<span style="color: var(--dna-green); text-shadow: 0 0 40px rgba(0,255,136,0.4);">TUNE</span>
-  </div>
-
-  <div style="
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 3px;
-    color: var(--text-dim);
-    margin-top: 12px;
-    text-transform: uppercase;
-  ">
-    EVERY DATASET HAS A DNA — WE READ IT, PRESCRIBE IT, EVOLVE IT
-  </div>
-</div>
-"""
-
-HERO_HTML_CENTERED = """
-<div class="hero--centered" style="
+def get_hero_html(centered=False):
+    css_class = 'class="hero--centered"' if centered else ''
+    extra_style = '' if centered else 'border-bottom: 1px solid var(--border); margin-bottom: 40px;'
+    return f"""
+<div {css_class} style="
   padding: 48px 0 32px 0;
   position: relative;
   overflow: hidden;
+  {extra_style}
 ">
   <!-- Scan line effect -->
   <div style="
@@ -685,11 +655,11 @@ HERO_HTML_CENTERED = """
 
 if not uploaded_file:
     # Render hero with hero--centered class and the prompt below it
-    st.markdown(HERO_HTML_CENTERED, unsafe_allow_html=True)
+    st.markdown(get_hero_html(centered=True), unsafe_allow_html=True)
     st.markdown(PROMPT_HTML, unsafe_allow_html=True)
 else:
     # Render hero in original form, exactly as it currently exists
-    st.markdown(HERO_HTML_ORIGINAL, unsafe_allow_html=True)
+    st.markdown(get_hero_html(centered=False), unsafe_allow_html=True)
 
 if uploaded_file:
     # 1. ANALYSIS ROW
@@ -773,30 +743,29 @@ if uploaded_file:
           margin-top: 8px;
           clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
         ">
-          <div style="font-family:var(--font-mono); font-size:8px; letter-spacing:4px; color:var(--text-dim); margin-bottom:14px; text-transform:uppercase;">GENOME READOUT</div>
+          <div style="font-family:var(--font-mono); font-size:11px; letter-spacing:3px; color:var(--text-primary); margin-bottom:16px; text-transform:uppercase; font-weight:bold;">GENOME READOUT</div>
 
           {(lambda _safe: ''.join([
-            f'''<div style="margin-bottom:10px;"><div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; letter-spacing:1px; color:var(--text-dim); margin-bottom:4px; text-transform:uppercase;"><span>{name}</span><span style="color:var(--text-secondary);">{val:.4f}</span></div><div style="background:rgba(26,37,64,0.6); height:2px; border-radius:1px; overflow:hidden;"><div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div></div></div>'''
-            for name, val, pct, color1, color2 in [
-              ('TARGET ENTROPY',    _safe('target_entropy'),         min(_safe('target_entropy')/2,1),        '#00FF88','#00D4FF'),
-              ('SPARSITY',          _safe('sparsity'),               min(_safe('sparsity'),1),                '#FFB800','#FF006E'),
-              ('IMBALANCE RATIO',   _safe('class_imbalance_ratio'),  min(_safe('class_imbalance_ratio')/10,1),'#FF006E','#9B5DE5'),
-              ('DIMENSIONALITY',    _safe('dimensionality'),         min(_safe('dimensionality'),1),          '#00D4FF','#00FF88'),
-              ('TASK DIFFICULTY',   _safe('task_difficulty_score'),  min(_safe('task_difficulty_score')/3,1), '#9B5DE5','#FF006E'),
+            f'''<div style="margin-bottom:12px;"><div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px;"><span title="{tooltip}" style="font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; color:var(--text-secondary); text-transform:uppercase; cursor:help; border-bottom:1px dotted var(--text-dim);">{name}</span><span style="font-family:var(--font-display); font-size:14px; letter-spacing:1px; color:var(--text-primary);">{val:.4f}</span></div><div style="background:rgba(26,37,64,0.6); height:2px; overflow:hidden;"><div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div></div></div>'''
+            for name, val, pct, color1, color2, tooltip in [
+              ('TARGET ENTROPY',    _safe('target_entropy'),         min(_safe('target_entropy')/2,1),        '#00FF88','#00D4FF', 'Measures label unpredictability (0 = absolute certainty, >1.0 = high variance noise)'),
+              ('SPARSITY',          _safe('sparsity'),               min(_safe('sparsity'),1),                '#FFB800','#FF006E', 'Percentage of zero values in the feature matrix. High sparsity requires specialized handling'),
+              ('IMBALANCE RATIO',   _safe('class_imbalance_ratio'),  min(_safe('class_imbalance_ratio')/10,1),'#FF006E','#9B5DE5', 'Ratio describing how heavily skewed the target classes/distribution are'),
+              ('DIMENSIONALITY',    _safe('dimensionality'),         min(_safe('dimensionality'),1),          '#00D4FF','#00FF88', 'Ratio of features to instances. High dimensionality risks the curse of dimensionality'),
+              ('TASK DIFFICULTY',   _safe('task_difficulty_score'),  min(_safe('task_difficulty_score')/3,1), '#9B5DE5','#FF006E', 'Composite score indicating how hard the optimization landscape is to traverse'),
             ]
           ]))(lambda k: float(dna.get(k, 0)) if dna.get(k, 0) == dna.get(k, 0) else 0.0)}
 
           <div style="
-            margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
-            font-family:var(--font-mono); font-size:9px; letter-spacing:2px;
-            color:{'var(--dna-green)' if dna.get('task_type')=='classification' else 'var(--neural-amber)'};
-            text-transform:uppercase;
+            margin-top:16px; padding-top:12px; border-top:1px dashed var(--border);
+            display: flex; justify-content: space-between; align-items: center;
           ">
-            ◈ TASK TYPE: {dna.get('task_type','UNKNOWN').upper()}
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            INSTANCES: {dna.get('n_instances',0):,}
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            FEATURES: {dna.get('n_features',0)}
+            <div style="font-family:var(--font-mono); font-size:10px; letter-spacing:1px; color:{'var(--dna-green)' if dna.get('task_type')=='classification' else 'var(--neural-amber)'}; text-transform:uppercase;">
+              ◈ {dna.get('task_type','UNKNOWN').upper()}
+            </div>
+            <div style="font-family:var(--font-tech); font-size:11px; letter-spacing:1px; color:var(--text-dim);">
+              <span style="color:var(--text-secondary);">{dna.get('n_instances',0):,}</span> ROWS &nbsp;×&nbsp; <span style="color:var(--text-secondary);">{dna.get('n_features',0)}</span> COLS
+            </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -806,12 +775,12 @@ if uploaded_file:
         <div style="margin-bottom:20px;">
           <div style="
             display:flex; align-items:center; gap:12px;
-            font-family:var(--font-mono); font-size:9px;
-            letter-spacing:4px; color:var(--neural-amber);
-            text-transform:uppercase; margin-bottom:16px;
+            font-family:var(--font-mono); font-size:11px;
+            letter-spacing:3px; color:var(--neural-amber);
+            text-transform:uppercase; margin-bottom:12px;
           ">
             <div style="
-              width:28px; height:28px; border:1px solid var(--neural-amber);
+              width:26px; height:26px; border:1px solid var(--neural-amber);
               border-radius:50%; display:flex; align-items:center; justify-content:center;
               font-family:var(--font-display); font-size:14px; color:var(--neural-amber);
             ">2</div>
@@ -857,27 +826,27 @@ if uploaded_file:
           background: rgba(8,11,20,0.8);
           border: 1px solid var(--border);
           border-left: 3px solid {accent};
-          padding: 14px 18px;
-          margin: 12px 0;
-          font-family: var(--font-mono);
-          font-size: 11px;
-          letter-spacing: 1px;
+          padding: 16px 20px;
+          margin: 16px 0;
+          font-family: var(--font-tech);
+          font-size: 13px;
+          line-height: 1.6;
           color: var(--text-secondary);
           clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
         ">
-          <span style="color:{accent}; font-weight:700;">◈ BRAIN SIGNAL: {regime}</span><br>
-          Entropy Ω = {entropy_val:.3f} →
+          <div style="font-family:var(--font-mono); color:{accent}; font-size:11px; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;">◈ BRAIN SIGNAL: {regime}</div>
+          <span style="font-family:var(--font-mono); color:var(--text-primary); font-size:12px; letter-spacing:1px;">Ω = {entropy_val:.3f}</span> &nbsp;—&nbsp;
           {'Enforcing stricter regularization. High variance in target distribution detected.' if entropy_val > 1.0 else 'Stability confirmed. Standard optimization protocols engaged.'}
-          Trial #{active_trial.id} parameters generated.
+          <div style="margin-top:8px; font-family:var(--font-mono); font-size:10px; color:var(--text-dim); text-transform:uppercase;">Trial #{active_trial.id} parameters generated</div>
         </div>
         """, unsafe_allow_html=True)
 
         # ── ALGORITHM SECTION HEADER ──
         st.markdown("""
         <div style="
-          font-family:var(--font-mono); font-size:9px;
-          letter-spacing:4px; color:var(--text-dim);
-          text-transform:uppercase; margin:20px 0 12px 0;
+          font-family:var(--font-mono); font-size:11px;
+          letter-spacing:3px; color:var(--text-dim);
+          text-transform:uppercase; margin:24px 0 16px 0;
           display:flex; align-items:center; gap:12px;
         ">
           <span style="flex:1; height:1px; background:var(--border);"></span>
@@ -893,6 +862,7 @@ if uploaded_file:
             "Select algorithm to train/deploy",
             options=list(algo_label_to_id.keys()) if recommendations else [default_algo_label],
             index=0,
+            label_visibility="hidden"
         )
         selected_algorithm_id = algo_label_to_id.get(selected_algo_label, "pytorch_mlp")
         selected_reason = next((c["reason"] for c in recommendations if c["id"] == selected_algorithm_id), "")
@@ -927,7 +897,6 @@ if uploaded_file:
             """, unsafe_allow_html=True)
 
     # 2. TRAINING ROW (THE LIVE PART)
-    st.markdown("---")
     st.markdown("""
 <div style="
   border-top: 1px solid var(--border);
@@ -948,25 +917,38 @@ if uploaded_file:
 </div>
 """, unsafe_allow_html=True)
 
-    col_btn, col_txt = st.columns([1, 4])
-    with col_btn:
-        start_btn = st.button("⌬ IGNITE ENGINE")
-    with col_txt:
-        st.markdown(f"""
-        <div style="
-          padding: 14px 20px;
-          font-family:var(--font-mono); font-size:10px; letter-spacing:2px;
-          color:var(--text-dim); line-height:1.8;
-        ">
-          ALGORITHM: <span style="color:var(--text-primary);">{selected_algo_label.upper()}</span>
-          &nbsp;·&nbsp;
-          TRIAL: <span style="color:var(--neural-amber);">#{active_trial.id}</span>
-          &nbsp;·&nbsp;
-          PATH: <span style="color:{'var(--dna-green)' if selected_algorithm_id != 'pytorch_mlp' else 'var(--neural-amber)'}">
-            {'SKLEARN/JOBLIB' if selected_algorithm_id != 'pytorch_mlp' else 'PYTORCH/PTH'}
-          </span>
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--bio-cyan);
+      padding: 16px 24px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px;
+      color: var(--text-dim);
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    ">
+      <div>
+        <span style="color:var(--bio-cyan); font-weight: bold;">◈ ACTIVE CONFIGURATION</span>
+      </div>
+      <div>
+        ALGORITHM: <span style="color:var(--text-primary);">{selected_algo_label.upper()}</span>
+        &nbsp;·&nbsp;
+        TRIAL: <span style="color:var(--neural-amber);">#{active_trial.id}</span>
+        &nbsp;·&nbsp;
+        PATH: <span style="color:{'var(--dna-green)' if selected_algorithm_id != 'pytorch_mlp' else 'var(--neural-amber)'}">
+          {'SKLEARN/JOBLIB' if selected_algorithm_id != 'pytorch_mlp' else 'PYTORCH/PTH'}
+        </span>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    start_btn = st.button("⌬ IGNITE BILEVEL OPTIMIZATION ENGINE", use_container_width=True)
     
     if start_btn:
         # Guard: recover dna from session cache if the analyzer didn't re-run this rerun
@@ -991,9 +973,9 @@ if uploaded_file:
                 color = '#00FFFF' if i == 0 else '#444'
                 anim = 'animation: neuralPulse 2s infinite;' if i == 0 else ''
                 phase_cards_html += f"""
-    <div style="background:{bg};border:1px solid {border};border-radius:8px;padding:12px;text-align:center;{anim}">
-        <div style="font-size:20px;margin-bottom:4px;">{em}</div>
-        <div style="color:{color};font-size:10px;letter-spacing:1px;">{label}</div>
+    <div style="background:{bg};border:1px solid {border};clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);padding:12px;text-align:center;transition:all 0.4s cubic-bezier(0.25, 1, 0.5, 1);transform:translateY({"-4" if i==0 else "0"}px);{anim}">
+        <div style="font-size:20px;margin-bottom:4px;transition:transform 0.3s;transform:scale({1.2 if i==0 else 1});">{em}</div>
+        <div style="color:{color};font-size:10px;letter-spacing:1px;transition:color 0.3s;">{label}</div>
     </div>"""
             launch_container.markdown(f"""
 <div style="
@@ -1067,7 +1049,7 @@ if uploaded_file:
                         _a = _si['stage']
                         _visible = _stage_log_counts.get(_a, 2)
                         _boxes = ''.join([
-                            f'<div style="background:{"rgba(0,255,136,0.08)" if i==_a else ("rgba(0,255,136,0.03)" if i<_a else "rgba(255,255,255,0.02)")}; border:1px solid {"var(--dna-green)" if i==_a else ("rgba(0,255,136,0.25)" if i<_a else "var(--border)")}; padding:14px; text-align:center; {"animation:neuralPulse 2s infinite;" if i==_a else ""}"><div style="font-size:18px; margin-bottom:6px;">{em}</div><div style="color:{"var(--dna-green)" if i==_a else ("rgba(0,255,136,0.45)" if i<_a else "var(--text-dim)")}; font-size:8px; letter-spacing:2px;">{"\u2713 " if i<_a else ""}{lbl}</div></div>'
+                            f'<div style="background:{"rgba(0,255,136,0.08)" if i==_a else ("rgba(0,255,136,0.03)" if i<_a else "rgba(255,255,255,0.02)")}; border:1px solid {"var(--dna-green)" if i==_a else ("rgba(0,255,136,0.25)" if i<_a else "var(--border)")}; clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%); padding:14px; text-align:center; transition:all 0.4s cubic-bezier(0.25, 1, 0.5, 1); transform:translateY({"0" if i!=_a else "-4px"}); {"animation:neuralPulse 2s infinite;" if i==_a else ""}"><div style="font-size:18px; margin-bottom:6px; transition:transform 0.3s; transform:scale({"1.2" if i==_a else "1"});">{em}</div><div style="color:{"var(--dna-green)" if i==_a else ("rgba(0,255,136,0.45)" if i<_a else "var(--text-dim)")}; font-size:8px; letter-spacing:2px; transition:color 0.3s;">{"\u2713 " if i<_a else ""}{lbl}</div></div>'
                             for i,(em,lbl) in enumerate(_stage_defs)
                         ])
                         _logs = ''.join([
@@ -1132,6 +1114,9 @@ if uploaded_file:
                 score_pct = final_metric * 100
                 score_color = '#00FF41' if score_pct >= 85 else ('#FFB800' if score_pct >= 70 else '#FF006E')
                 score_label = 'EXCELLENT' if score_pct >= 85 else ('GOOD' if score_pct >= 70 else 'DEVELOPING')
+                
+                if score_pct >= 85:
+                    st.balloons()
 
                 st.markdown(f"""
 <div style="
@@ -1220,11 +1205,15 @@ if uploaded_file:
 
             else:
                 st.markdown("""
-<div style="background:#1A0A0A;border:1px solid #FF4B4B44;border-left:4px solid #FF4B4B;border-radius:10px;padding:20px;">
-    <div style="color:#FF4B4B;font-size:14px;font-weight:bold;">⚠️ Training did not complete.</div>
-    <div style="color:#888;font-size:12px;margin-top:6px;">Check your dataset and hyperparameters.</div>
+<div style="background:rgba(255,0,110,0.05);border:1px solid rgba(255,0,110,0.2);border-left:4px solid var(--quantum-magenta);padding:20px;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%); margin-bottom: 16px;">
+    <div style="font-family:var(--font-mono);color:var(--quantum-magenta);font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;">⚠️ Training did not complete</div>
+    <div style="font-family:var(--font-tech);color:var(--text-secondary);font-size:12px;margin-top:8px;">Check your dataset and hyperparameters.</div>
 </div>
                 """, unsafe_allow_html=True)
+                if st.button("⌬ RESET SESSION", key="reset_err_sklearn"):
+                    for key in ['temp_path', 'session_id', 'system_status', 'file_encoding', 'study', 'ready_to_train', 'params']:
+                        st.session_state.pop(key, None)
+                    st.rerun()
 
         else:
             status_indicator.markdown(f"""
@@ -1310,8 +1299,8 @@ if uploaded_file:
   padding: 14px 24px;
   margin-bottom: 8px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
   font-family: var(--font-mono);
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
 ">
@@ -1338,7 +1327,6 @@ if uploaded_file:
 </div>
 """, unsafe_allow_html=True)
                     progress_bar.progress(min(stats['epoch'] / 30, 1.0))
-                    time.sleep(0.02)
 
                 metric_key = 'Accuracy' if dna.get('task_type') == 'classification' else 'R2 Score'
                 training_results = {
@@ -1455,38 +1443,45 @@ if uploaded_file:
                         with st.expander("◈ BEST HYPERPARAMETERS"):
                             st.json(_best.parameters)
 
-                # ── DOWNLOAD BUTTON ────────────────────────────────────────────
-                st.download_button(
-                    label="📦 Download Deployable Package (.joblib)",
-                    data=payload,
-                    file_name=f"metatune_{selected_algorithm_id}_package.joblib",
-                    mime="application/octet-stream",
-                )
+                # ── SAVE AND DOWNLOAD PYTORCH MODEL ───────────────────────────
+                if training_results is not None and hasattr(trainer, 'model') and trainer.model is not None:
+                    torch.save(trainer.model.state_dict(), "best_model.pth")
+                    if os.path.exists("best_model.pth"):
+                        with open("best_model.pth", "rb") as f:
+                            st.download_button(
+                                label="💾 Download Trained Model (.pth)",
+                                data=f,
+                                file_name="meta_tune_model.pth",
+                                mime="application/octet-stream"
+                            )
 
             else:
                 st.markdown("""
-    <div style="
-        background: #1A0A0A; border: 1px solid #FF4B4B44;
-        border-left: 4px solid #FF4B4B; border-radius: 10px; padding: 20px;
-        animation: slideUpFadeIn 0.5s ease-out;
-    ">
-        <div style="color: #FF4B4B; font-size: 14px; font-weight: bold;">
-            ⚠️ Training did not complete.
-        </div>
-        <div style="color: #888; font-size: 12px; margin-top: 6px;">
-            Check your dataset and hyperparameters.
-        </div>
-    </div>
+<div style="background:rgba(255,0,110,0.05);border:1px solid rgba(255,0,110,0.2);border-left:4px solid var(--quantum-magenta);padding:20px;clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%); margin-bottom: 16px; animation: slideUpFadeIn 0.5s ease-out;">
+    <div style="font-family:var(--font-mono);color:var(--quantum-magenta);font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;">⚠️ Training did not complete</div>
+    <div style="font-family:var(--font-tech);color:var(--text-secondary);font-size:12px;margin-top:8px;">Check your dataset and hyperparameters.</div>
+</div>
                     """, unsafe_allow_html=True)
+                if st.button("⌬ RESET SESSION", key="reset_err_pytorch"):
+                    for key in ['temp_path', 'session_id', 'system_status', 'file_encoding', 'study', 'ready_to_train', 'params']:
+                        st.session_state.pop(key, None)
+                    st.rerun()
 
-                # ── SAVE PYTORCH MODEL ────────────────────────────────────────
-                if training_results is not None and hasattr(trainer, 'model') and trainer.model is not None:
-                    torch.save(trainer.model.state_dict(), "best_model.pth")
-                if os.path.exists("best_model.pth"):
-                    with open("best_model.pth", "rb") as f:
-                        st.download_button(
-                            label="💾 Download Trained Model (.pth)",
-                            data=f,
-                            file_name="meta_tune_model.pth",
-                            mime="application/octet-stream"
-                        )
+# =============================================================================
+# POWER-USER OVERDRIVE (KEYBOARD SHORTCUTS)
+# =============================================================================
+components.html("""
+<script>
+const parentDoc = window.parent.document;
+parentDoc.addEventListener('keydown', function(e) {
+    // CMD/CTRL + Enter to ignite engine
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        const buttons = Array.from(parentDoc.querySelectorAll('button'));
+        const igniteBtn = buttons.find(el => el.innerText.includes('IGNITE') || el.innerText.includes('ENGINE'));
+        if (igniteBtn) {
+            igniteBtn.click();
+        }
+    }
+});
+</script>
+""", height=0, width=0)

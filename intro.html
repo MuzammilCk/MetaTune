@@ -1006,6 +1006,16 @@
     const ctx = canvas.getContext('2d');
     let W = 0, H = 0;
 
+    let mouse = { x: -1000, y: -1000 };
+    window.addEventListener('mousemove', e => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+    window.addEventListener('mouseout', () => {
+      mouse.x = -1000;
+      mouse.y = -1000;
+    });
+
     function resizeCanvas() {
       W = canvas.width = window.innerWidth;
       H = canvas.height = window.innerHeight;
@@ -1021,13 +1031,32 @@
         this.z = 0.2 + Math.random() * 0.8;
         this.vx = -0.12 - Math.random() * 0.35;
         this.vy = (Math.random() - 0.5) * 0.12;
-        this.alpha = init ? 0 : 0.2 + Math.random() * 0.55;
+        this.baseAlpha = init ? 0 : 0.2 + Math.random() * 0.55;
+        this.alpha = this.baseAlpha;
       }
       step() {
         this.x += this.vx * (0.5 + this.z);
         this.y += this.vy * (0.5 + this.z);
-        if (this.x < -40 || this.y < -40 || this.y > H + 40) {
-          this.reset(); this.x = W + 20; this.y = Math.random() * H;
+        
+        // ── OVERDRIVE MAGNETIC EVASION ──
+        const dx = mouse.x - this.x;
+        const dy = mouse.y - this.y;
+        const distSq = dx * dx + dy * dy;
+        const radiusSq = 30000;
+        
+        if (distSq < radiusSq) {
+          const force = (radiusSq - distSq) / radiusSq;
+          this.x -= (dx / Math.sqrt(distSq)) * force * 6;
+          this.y -= (dy / Math.sqrt(distSq)) * force * 6;
+          this.alpha = Math.min(this.alpha + 0.15, 1.0);
+        } else {
+          if (this.alpha > this.baseAlpha) this.alpha -= 0.015;
+        }
+
+        if (this.x < -100 || this.y < -100 || this.y > H + 100 || this.x > W + 100) {
+          this.reset(false);
+          this.x = this.vx < 0 ? W + 40 : -40;
+          this.y = Math.random() * H;
         }
       }
       draw(c) {
@@ -1144,9 +1173,17 @@
     // Auto-start after 400ms
     window.addEventListener('load', () => setTimeout(startTimeline, 400));
     window.addEventListener('click', startTimeline, { once: true });
+    
+    // Setup keydown for Enter/Space to skip directly
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') startTimeline();
-    }, { once: true });
+      // Overdrive skipping bindings
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          if (typeof skipIntro === 'function') {
+              skipIntro();
+          }
+      }
+    });
 
     /* ── STREAMLIT COMPONENT BRIDGE ── */
     // Must send componentReady first so Streamlit starts listening,
