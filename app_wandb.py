@@ -1282,7 +1282,8 @@ if uploaded_file:
                         yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='LOSS', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
                         legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
                     )
-                    loss_chart.plotly_chart(fig_loss, width='stretch', key=f"loss_{stats['epoch']}")
+                    if stats['epoch'] % 3 == 0 or stats['epoch'] == 30:
+                        loss_chart.plotly_chart(fig_loss, width='stretch', key=f"loss_{stats['epoch']}")
 
                     fig_reg = go.Figure()
                     fig_reg.add_trace(go.Scatter(
@@ -1298,7 +1299,8 @@ if uploaded_file:
                         yaxis=dict(showgrid=True, gridcolor='rgba(26,37,64,0.5)', title=dict(text='WEIGHT DECAY', font=dict(size=8, family='Share Tech Mono')), color='#3D4F66'),
                         legend=dict(orientation='h', y=1.1, font=dict(family='Share Tech Mono', size=9), bgcolor='rgba(0,0,0,0)'),
                     )
-                    reg_chart.plotly_chart(fig_reg, width='stretch', key=f"reg_{stats['epoch']}")
+                    if stats['epoch'] % 3 == 0 or stats['epoch'] == 30:
+                        reg_chart.plotly_chart(fig_reg, width='stretch', key=f"reg_{stats['epoch']}")
 
                     pytorch_header.markdown(f"""
 <div style="
@@ -1350,7 +1352,7 @@ if uploaded_file:
                 training_results = None
             
             if (training_results is not None and training_results.get('final_metric') is not None):
-                if 'study' not in st.session_state:
+                if st.session_state.get('study') is None:
                     from vizier_stub import Study
                     st.session_state['study'] = Study(name="metatune_session")
 
@@ -1363,7 +1365,9 @@ if uploaded_file:
                 )
                 st.session_state['study'].add_trial(_trial)
 
-                final_metric = training_results.get('final_metric', 0.0)
+                final_metric = float(training_results.get('final_metric', 0.0))
+                metric_name = str(training_results.get('metric_name', 'Metric'))
+                training_time = float(training_results.get('training_time', 0.0))
                 score_pct = final_metric * 100
                 score_color = '#00FF41' if score_pct >= 85 else ('#FFB800' if score_pct >= 70 else '#FF006E')
                 score_label = 'EXCELLENT' if score_pct >= 85 else ('GOOD' if score_pct >= 70 else 'DEVELOPING')
@@ -1398,7 +1402,7 @@ if uploaded_file:
         ])}
       </div>
       <div style="margin-top:12px;background:rgba(26,37,64,0.6);border-radius:2px;height:4px;width:min(400px,100%);overflow:hidden;">
-        <div style="height:100%;width:{min(final_score_pct,100):.0f}%;background:linear-gradient(90deg,var(--bio-cyan),var(--dna-green));border-radius:2px;box-shadow:0 0 8px rgba(0,212,255,0.5);"></div>
+        <div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,var(--bio-cyan),var(--dna-green));border-radius:2px;box-shadow:0 0 8px rgba(0,212,255,0.5);"></div>
       </div>
       <div style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;margin-top:8px;letter-spacing:1px;">
         Trained in {training_results.get('training_time', 0.0):.2f}s · 30 epochs
@@ -1407,7 +1411,7 @@ if uploaded_file:
     """, unsafe_allow_html=True)
 
                 # ── VIZIER TRIAL TRACKING (keep existing logic) ────────────────
-                if 'study' not in st.session_state:
+                if st.session_state.get('study') is None:
                     from vizier_stub import Study
                     st.session_state['study'] = Study(name="metatune_session")
                 from vizier_stub import Trial
