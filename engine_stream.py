@@ -1,4 +1,4 @@
-"""DynamicTrainer — STREAMING MODE (generator, yields per epoch). Used by: app_wandb.py only. DO NOT import in bilevel.py or pipeline.py — use engine.py instead."""
+"""DynamicTrainer — STREAMING MODE (generator, yields per epoch). Used by: app.py only. DO NOT import in bilevel.py or pipeline.py — use engine.py instead."""
 import torch
 import torch.nn as nn
 import torch.optim as optim

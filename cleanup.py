@@ -10,8 +10,8 @@ def cleanup_project():
     # We use a set for O(1) lookups
     WHITELIST_FILES = {
         # Core Source
-        'app.py', 'brain.py', 'data_analyzer.py', 'engine.py', 'pipeline.py',
-        'bilevel.py', 'app_wandb.py', 'engine_stream.py',
+        'brain.py', 'data_analyzer.py', 'engine.py', 'pipeline.py',
+        'bilevel.py', 'app.py', 'engine_stream.py',
         'cleanup.py', # Don't delete self!
         # Config / Info
         'README.md', 'requirements.txt', '.gitignore',

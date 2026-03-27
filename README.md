@@ -98,7 +98,7 @@ graph TB
     end
 
     subgraph UI["🖥️ UI Layer"]
-        APP[app_wandb.py<br/>Streamlit Dashboard]
+        APP[app.py<br/>Streamlit Dashboard]
     end
 
     subgraph EXTERNAL["🔗 External Dependencies"]
@@ -180,7 +180,7 @@ graph LR
 
     subgraph PIPELINE["Orchestration"]
         PL[pipeline.py<br/>CLI Entry Point]
-        APP[app_wandb.py<br/>Interactive UI]
+        APP[app.py<br/>Interactive UI]
     end
 
     DA --> B
@@ -254,7 +254,7 @@ pip install xgboost
 ### Run the Interactive Dashboard
 
 ```bash
-streamlit run app_wandb.py
+streamlit run app.py
 ```
 
 Navigate to `http://localhost:8501`, upload any CSV file, and click **IGNITE ENGINE**.
@@ -371,7 +371,7 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=10s \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
-CMD ["streamlit", "run", "app_wandb.py", \
+CMD ["streamlit", "run", "app.py", \
      "--server.port=8501", \
      "--server.address=0.0.0.0", \
      "--server.headless=true"]
@@ -615,11 +615,9 @@ This test guards the `algorithm_recommender.py ↔ sklearn_engine.py` interface.
 ```
 metatune/
 │
-├── app_wandb.py            # 🖥️  PRIMARY UI — Streamlit dashboard with live training
+├── app.py                  # 🖥️  PRIMARY UI — Streamlit dashboard with live training
 │                           #     Neural Mission Control aesthetic, Plotly charts,
 │                           #     animated training states, joblib download
-│
-├── app.py                  # ⚠️  LEGACY stub — non-functional placeholder, do not use
 │
 ├── brain.py                # 🧠  Meta-Learner core
 │                           #     AdvancedMetaNet: SelfAttention + ResidualBlocks
@@ -749,8 +747,6 @@ Key rules for contributors:
 2. **Run the contract test before pushing** — `python -m pytest tests/test_integration.py -v` must pass green.
 
 3. **Name regression tests after bugs** — If you fix a crash, add a test with a descriptive name that references the bug (e.g., `test_xgboost_regression_specifically`).
-
-4. **Never touch `app.py`** — It is a legacy stub retained for compatibility. All new development goes into `app_wandb.py`.
 
 [Open an Issue](https://github.com/your-org/metatune/issues) · [Submit a PR](https://github.com/your-org/metatune/pulls)
 
