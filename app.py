@@ -979,40 +979,40 @@ if uploaded_file:
     </div>"""
             launch_container.markdown(f"""
 <div style="
-  background: linear-gradient(135deg, var(--void) 0%, var(--deep) 100%);
-  border: 1px solid rgba(0,255,136,0.2);
-  padding: 40px;
-  position: relative;
-  overflow: hidden;
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
-  font-family: var(--font-mono);
+background: linear-gradient(135deg, var(--void) 0%, var(--deep) 100%);
+border: 1px solid rgba(0,255,136,0.2);
+padding: 40px;
+position: relative;
+overflow: hidden;
+clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+font-family: var(--font-mono);
 ">
-  <div style="position:absolute; top:0; left:0; right:0; bottom:0;
-    background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
-    animation:scanSweep 2s linear infinite; pointer-events:none;"></div>
+<div style="position:absolute; top:0; left:0; right:0; bottom:0;
+background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
+animation:scanSweep 2s linear infinite; pointer-events:none;"></div>
 
-  <div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
-    <div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-      <div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
-      <div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
-      <span style="font-size:16px; position:relative; z-index:1;">⌬</span>
-    </div>
-  </div>
+<div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
+<div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+<div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
+<div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
+<span style="font-size:16px; position:relative; z-index:1;">⌬</span>
+</div>
+</div>
 
-  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">
-    {phase_cards_html}
-  </div>
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">
+{phase_cards_html}
+</div>
 
-  <div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
-    <div style="height:100%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan),var(--dna-green)); background-size:200% 100%; animation:borderTrace 1.5s linear infinite;"></div>
-  </div>
+<div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
+<div style="height:100%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan),var(--dna-green)); background-size:200% 100%; animation:borderTrace 1.5s linear infinite;"></div>
+</div>
 
-  <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; color:#00FF41; line-height:2;">
-    <div style="animation:matrixFlicker 0.5s infinite;">▶ Initializing preprocessing pipeline...</div>
-    <div style="animation:matrixFlicker 0.5s 0.15s infinite; opacity:0.8;">▶ Splitting train/validation (80/20)...</div>
-    <div style="color:var(--neural-amber); animation:matrixFlicker 0.6s 0.3s infinite;">◈ Anti-overfitting regularization: ACTIVE</div>
-    <div style="animation:matrixFlicker 0.5s 0.45s infinite; opacity:0.6;">▶ Fitting {selected_algo_label.upper()} estimator...</div>
-  </div>
+<div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; color:#00FF41; line-height:2;">
+<div style="animation:matrixFlicker 0.5s infinite;">▶ Initializing preprocessing pipeline...</div>
+<div style="animation:matrixFlicker 0.5s 0.15s infinite; opacity:0.8;">▶ Splitting train/validation (80/20)...</div>
+<div style="color:var(--neural-amber); animation:matrixFlicker 0.6s 0.3s infinite;">◈ Anti-overfitting regularization: ACTIVE</div>
+<div style="animation:matrixFlicker 0.5s 0.45s infinite; opacity:0.6;">▶ Fitting {selected_algo_label.upper()} estimator...</div>
+</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1058,43 +1058,43 @@ if uploaded_file:
                         ])
                         launch_container.markdown(f"""
 <div style="
-  background: linear-gradient(135deg, var(--void) 0%, var(--deep) 100%);
-  border: 1px solid rgba(0,255,136,0.2);
-  padding: 40px;
-  position: relative;
-  overflow: hidden;
-  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
-  font-family: var(--font-mono);
+background: linear-gradient(135deg, var(--void) 0%, var(--deep) 100%);
+border: 1px solid rgba(0,255,136,0.2);
+padding: 40px;
+position: relative;
+overflow: hidden;
+clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+font-family: var(--font-mono);
 ">
-  <div style="position:absolute; top:0; left:0; right:0; bottom:0;
-    background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
-    animation:scanSweep 2s linear infinite; pointer-events:none;"></div>
+<div style="position:absolute; top:0; left:0; right:0; bottom:0;
+background:linear-gradient(90deg,transparent 0%,rgba(0,255,136,0.04) 50%,transparent 100%);
+animation:scanSweep 2s linear infinite; pointer-events:none;"></div>
 
-  <div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
-    <div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
-      <div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
-      <div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
-      <span style="font-size:16px; position:relative; z-index:1;">⧆</span>
-    </div>
-    <div>
-      <div style="color:var(--dna-green); font-size:14px; font-weight:700; letter-spacing:4px; text-transform:uppercase;">NEURAL ENGINE IGNITED</div>
-      <div style="color:var(--text-dim); font-size:9px; letter-spacing:3px; margin-top:4px;">
-        TRIAL #{active_trial.id} · {selected_algo_label.upper()} · SKLEARN PATH · STAGE {_a+1}/4: {_si['stage_name']}
-      </div>
-    </div>
-    <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-      <span style="width:8px; height:8px; background:#00FF41; border-radius:50%; display:inline-block; box-shadow:0 0 10px #00FF41; animation:heartbeat 1.5s infinite;"></span>
-      <span style="color:#00FF41; font-size:9px; letter-spacing:3px;">LIVE</span>
-    </div>
-  </div>
+<div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
+<div style="width:52px; height:52px; position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center;">
+<div style="position:absolute; inset:0; border:2px solid var(--dna-green); border-top-color:transparent; border-radius:50%; animation:orbitalSpin 1s linear infinite;"></div>
+<div style="position:absolute; inset:8px; border:2px solid rgba(0,255,136,0.3); border-bottom-color:transparent; border-radius:50%; animation:orbitalSpinReverse 0.7s linear infinite;"></div>
+<span style="font-size:16px; position:relative; z-index:1;">⧆</span>
+</div>
+<div>
+<div style="color:var(--dna-green); font-size:14px; font-weight:700; letter-spacing:4px; text-transform:uppercase;">NEURAL ENGINE IGNITED</div>
+<div style="color:var(--text-dim); font-size:9px; letter-spacing:3px; margin-top:4px;">
+TRIAL #{active_trial.id} · {selected_algo_label.upper()} · SKLEARN PATH · STAGE {_a+1}/4: {_si['stage_name']}
+</div>
+</div>
+<div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+<span style="width:8px; height:8px; background:#00FF41; border-radius:50%; display:inline-block; box-shadow:0 0 10px #00FF41; animation:heartbeat 1.5s infinite;"></span>
+<span style="color:#00FF41; font-size:9px; letter-spacing:3px;">LIVE</span>
+</div>
+</div>
 
-  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">{_boxes}</div>
+<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:32px;">{_boxes}</div>
 
-  <div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
-    <div style="height:100%; width:{(_a+1)*25}%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan)); box-shadow:0 0 10px rgba(0,255,136,0.5);"></div>
-  </div>
+<div style="background:rgba(26,37,64,0.6); height:4px; border-radius:2px; overflow:hidden; margin-bottom:20px;">
+<div style="height:100%; width:{(_a+1)*25}%; background:linear-gradient(90deg,var(--dna-green),var(--bio-cyan)); box-shadow:0 0 10px rgba(0,255,136,0.5);"></div>
+</div>
 
-  <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; line-height:2;">{_logs}</div>
+<div style="background:rgba(0,0,0,0.4); border:1px solid rgba(26,37,64,0.6); padding:14px; font-size:11px; line-height:2;">{_logs}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1120,57 +1120,57 @@ if uploaded_file:
 
                 st.markdown(f"""
 <div style="
-  background:linear-gradient(135deg,var(--void),var(--deep));
-  border:1px solid rgba({('0,255,65' if score_pct>=85 else '255,184,0' if score_pct>=70 else '255,0,110')},0.25);
-  padding:40px; margin:16px 0; position:relative; overflow:hidden;
-  clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,0 100%);
-  animation:slideUpFadeIn 0.6s ease-out;
+background:linear-gradient(135deg,var(--void),var(--deep));
+border:1px solid rgba({('0,255,65' if score_pct>=85 else '255,184,0' if score_pct>=70 else '255,0,110')},0.25);
+padding:40px; margin:16px 0; position:relative; overflow:hidden;
+clip-path:polygon(0 0,calc(100% - 24px) 0,100% 24px,100% 100%,0 100%);
+animation:slideUpFadeIn 0.6s ease-out;
 ">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; flex-wrap:wrap; gap:20px;">
-    <div>
-      <div style="font-family:var(--font-mono);color:{score_color};font-size:9px;letter-spacing:5px;margin-bottom:6px;text-transform:uppercase;">
-        TRAINING COMPLETE · TRIAL #{active_trial.id} · SKLEARN ENGINE
-      </div>
-      <div style="font-family:var(--font-display);font-size:36px;letter-spacing:2px;color:var(--text-primary);">{selected_algo_label.upper()}</div>
-    </div>
-    <div style="width:88px;height:88px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <div style="position:absolute;inset:0;border:2px solid {score_color};border-right-color:transparent;border-radius:50%;animation:orbitalSpin 2s linear infinite;"></div>
-      <div style="text-align:center;">
-        <div style="font-family:var(--font-display);font-size:20px;color:{score_color};">{score_pct:.1f}%</div>
-        <div style="font-family:var(--font-mono);font-size:7px;color:var(--text-dim);letter-spacing:1px;">{score_label}</div>
-      </div>
-    </div>
-  </div>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; flex-wrap:wrap; gap:20px;">
+<div>
+<div style="font-family:var(--font-mono);color:{score_color};font-size:9px;letter-spacing:5px;margin-bottom:6px;text-transform:uppercase;">
+TRAINING COMPLETE · TRIAL #{active_trial.id} · SKLEARN ENGINE
+</div>
+<div style="font-family:var(--font-display);font-size:36px;letter-spacing:2px;color:var(--text-primary);">{selected_algo_label.upper()}</div>
+</div>
+<div style="width:88px;height:88px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+<div style="position:absolute;inset:0;border:2px solid {score_color};border-right-color:transparent;border-radius:50%;animation:orbitalSpin 2s linear infinite;"></div>
+<div style="text-align:center;">
+<div style="font-family:var(--font-display);font-size:20px;color:{score_color};">{score_pct:.1f}%</div>
+<div style="font-family:var(--font-mono);font-size:7px;color:var(--text-dim);letter-spacing:1px;">{score_label}</div>
+</div>
+</div>
+</div>
 
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:28px;">
-    {''.join([
-      f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
-      for lb,vl,bc,sl in [
-        (metric_name.upper(), f'{final_metric:.4f}', score_color, 'PRIMARY OBJECTIVE'),
-        ('TRAIN TIME', f'{training_time:.2f}s', 'var(--evolution-purple)', 'WALL CLOCK'),
-        ('ALGORITHM', selected_algorithm_id.upper(), 'var(--bio-cyan)', 'DEPLOYABLE ✓'),
-      ]
-    ])}
-  </div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:28px;">
+{''.join([
+f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center;clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
+for lb,vl,bc,sl in [
+(metric_name.upper(), f'{final_metric:.4f}', score_color, 'PRIMARY OBJECTIVE'),
+('TRAIN TIME', f'{training_time:.2f}s', 'var(--evolution-purple)', 'WALL CLOCK'),
+('ALGORITHM', selected_algorithm_id.upper(), 'var(--bio-cyan)', 'DEPLOYABLE ✓'),
+]
+])}
+</div>
 
-  <div style="margin-bottom:24px;">
-    <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;">
-      <span>MODEL PERFORMANCE INDEX</span><span style="color:{score_color};">{score_pct:.1f}%</span>
-    </div>
-    <div style="background:rgba(26,37,64,0.6);height:6px;border-radius:3px;overflow:hidden;">
-      <div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,{score_color},{score_color}AA);border-radius:3px;box-shadow:0 0 12px {score_color}66;"></div>
-    </div>
-  </div>
+<div style="margin-bottom:24px;">
+<div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px;">
+<span>MODEL PERFORMANCE INDEX</span><span style="color:{score_color};">{score_pct:.1f}%</span>
+</div>
+<div style="background:rgba(26,37,64,0.6);height:6px;border-radius:3px;overflow:hidden;">
+<div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,{score_color},{score_color}AA);border-radius:3px;box-shadow:0 0 12px {score_color}66;"></div>
+</div>
+</div>
 
-  <div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);padding:16px;">
-    <div style="font-family:var(--font-mono);font-size:8px;letter-spacing:4px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;">HYPERPARAMETER CONFIGURATION — TRIAL #{active_trial.id}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
-      {''.join([
-        f'''<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,37,64,0.4);"><span style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;">{str(k).upper()[:14]}</span><span style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:10px;font-weight:700;">{f'{v:.4f}' if isinstance(v,float) else str(v)}</span></div>'''
-        for k,v in list(params.items())[:6]
-      ])}
-    </div>
-  </div>
+<div style="background:rgba(0,0,0,0.3);border:1px solid var(--border);padding:16px;">
+<div style="font-family:var(--font-mono);font-size:8px;letter-spacing:4px;color:var(--text-dim);margin-bottom:12px;text-transform:uppercase;">HYPERPARAMETER CONFIGURATION — TRIAL #{active_trial.id}</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+{''.join([
+f'''<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(26,37,64,0.4);"><span style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;">{str(k).upper()[:14]}</span><span style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:10px;font-weight:700;">{f'{v:.4f}' if isinstance(v,float) else str(v)}</span></div>'''
+for k,v in list(params.items())[:6]
+])}
+</div>
+</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1368,35 +1368,37 @@ if uploaded_file:
   clip-path:polygon(0 0,calc(100% - 20px) 0,100% 20px,100% 100%,0 100%);
   animation:slideUpFadeIn 0.6s ease-out;
 ">
-  <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
-    <div style="width:64px;height:64px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <div style="position:absolute;inset:0;border:2px solid var(--bio-cyan);border-right-color:transparent;border-radius:50%;animation:orbitalSpin 2s linear infinite;"></div>
-      <span style="font-size:24px;position:relative;">🧠</span>
-    </div>
-    <div style="flex:1;">
-      <div style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:9px;letter-spacing:5px;margin-bottom:4px;text-transform:uppercase;">
-        PYTORCH ENGINE · TRIAL #{active_trial.id} · COMPLETE
-      </div>
+<div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+<div style="width:64px;height:64px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+<div style="position:absolute;inset:0;border:2px solid var(--bio-cyan);border-right-color:transparent;border-radius:50%;animation:orbitalSpin 2s linear infinite;"></div>
+<span style="font-size:24px;position:relative;">🧠</span>
+</div>
+<div style="flex:1;">
+<div style="font-family:var(--font-mono);color:var(--bio-cyan);font-size:9px;letter-spacing:5px;margin-bottom:4px;text-transform:uppercase;">
+PYTORCH ENGINE · TRIAL #{active_trial.id} · COMPLETE
+</div>
 
-      <!-- 3-column metric grid -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:28px;">
-        {''.join([
-          f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
-          for lb,vl,bc,sl in [
-            (metric_name.upper(),        f'{final_metric:.4f}',    score_color,             'PRIMARY OBJECTIVE'),
-            ('TRAIN TIME',               f'{training_time:.2f}s',  'var(--evolution-purple)','WALL CLOCK'),
-            ('ALGORITHM',                selected_algorithm_id.upper(), 'var(--bio-cyan)',   'DEPLOYABLE ✓'),
-          ]
-        ])}
-      </div>
-      <div style="margin-top:12px;background:rgba(26,37,64,0.6);border-radius:2px;height:4px;width:min(400px,100%);overflow:hidden;">
-        <div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,var(--bio-cyan),var(--dna-green));border-radius:2px;box-shadow:0 0 8px rgba(0,212,255,0.5);"></div>
-      </div>
-      <div style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;margin-top:8px;letter-spacing:1px;">
-        Trained in {training_results.get('training_time', 0.0):.2f}s · 30 epochs
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+<!-- 3-column metric grid -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:28px;">
+{''.join([
+f'''<div style="background:var(--panel);border:1px solid {bc}33; border-left:3px solid {bc};padding:20px;text-align:center; clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);"><div style="font-family:var(--font-mono);color:var(--text-dim);font-size:8px;letter-spacing:3px;margin-bottom:10px;text-transform:uppercase;">{lb}</div><div style="font-family:var(--font-display);font-size:28px;color:{bc};">{vl}</div><div style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);margin-top:6px;letter-spacing:1px;">{sl}</div></div>'''
+for lb,vl,bc,sl in [
+(metric_name.upper(),        f'{final_metric:.4f}',    score_color,             'PRIMARY OBJECTIVE'),
+('TRAIN TIME',               f'{training_time:.2f}s',  'var(--evolution-purple)','WALL CLOCK'),
+('ALGORITHM',                selected_algorithm_id.upper(), 'var(--bio-cyan)',   'DEPLOYABLE ✓'),
+]
+])}
+</div>
+<div style="margin-top:12px;background:rgba(26,37,64,0.6);border-radius:2px;height:4px;width:min(400px,100%);overflow:hidden;">
+<div style="height:100%;width:{min(score_pct,100):.0f}%;background:linear-gradient(90deg,var(--bio-cyan),var(--dna-green));border-radius:2px;box-shadow:0 0 8px rgba(0,212,255,0.5);"></div>
+</div>
+<div style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;margin-top:8px;letter-spacing:1px;">
+Trained in {training_results.get('training_time', 0.0):.2f}s · 30 epochs
+</div>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
 
                 # ── VIZIER TRIAL TRACKING (keep existing logic) ────────────────
                 if st.session_state.get('study') is None:
@@ -1423,23 +1425,23 @@ if uploaded_file:
                     if _optimal:
                         _best = _optimal[0]
                         st.markdown(f"""
-    <div style="
-      background:linear-gradient(135deg,rgba(0,255,65,0.04),var(--void));
-      border:1px solid rgba(0,255,65,0.2);
-      border-left:4px solid #00FF41;
-      padding:20px 24px;
-      margin-top:16px;
-      display:flex; align-items:center; gap:20px;
-      clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);
-    ">
-      <div style="font-size:32px;animation:heartbeat 2s infinite;flex-shrink:0;">🏆</div>
-      <div>
-        <div style="font-family:var(--font-mono);color:#00FF41;font-size:9px;letter-spacing:4px;text-transform:uppercase;margin-bottom:4px;">PERSONAL BEST · TRIAL #{_best.id}</div>
-        <div style="font-family:var(--font-display);font-size:32px;color:var(--text-primary);">{_best.final_measurement:.4f}</div>
-        <div style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;margin-top:4px;">{_best.elapsed_secs:.1f}s training time</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+<div style="
+background:linear-gradient(135deg,rgba(0,255,65,0.04),var(--void));
+border:1px solid rgba(0,255,65,0.2);
+border-left:4px solid #00FF41;
+padding:20px 24px;
+margin-top:16px;
+display:flex; align-items:center; gap:20px;
+clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%);
+">
+<div style="font-size:32px;animation:heartbeat 2s infinite;flex-shrink:0;">🏆</div>
+<div>
+<div style="font-family:var(--font-mono);color:#00FF41;font-size:9px;letter-spacing:4px;text-transform:uppercase;margin-bottom:4px;">PERSONAL BEST · TRIAL #{_best.id}</div>
+<div style="font-family:var(--font-display);font-size:32px;color:var(--text-primary);">{_best.final_measurement:.4f}</div>
+<div style="font-family:var(--font-mono);color:var(--text-dim);font-size:9px;letter-spacing:1px;margin-top:4px;">{_best.elapsed_secs:.1f}s training time</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
                         with st.expander("◈ BEST HYPERPARAMETERS"):
                             st.json(_best.parameters)
 
