@@ -20,7 +20,65 @@ class DatasetAnalyzer:
         self.file_path = file_path
         self.target_col = target_col
         self.data = None
+        self.cleaned_data = None
         self.meta_features = {}
+
+    def _detect_target_column(self):
+        """Detects target column using explicit input, name heuristics, then fallback."""
+        if self.target_col is not None:
+            if self.target_col in self.data.columns:
+                return self.target_col, "user_provided"
+            print(f"❌ Error: Target column '{self.target_col}' not found in dataset.")
+            return None, "invalid_user_target"
+
+        priority_names = {
+            "target", "label", "class", "y", "response", "outcome",
+            "price", "sale_price", "selling_price", "sales"
+        }
+        normalized = {c: str(c).strip().lower() for c in self.data.columns}
+        for col, col_norm in normalized.items():
+            if col_norm in priority_names:
+                return col, "name_heuristic_exact"
+
+        for col, col_norm in normalized.items():
+            if any(token in col_norm for token in ["target", "label", "class", "outcome", "price"]):
+                return col, "name_heuristic_partial"
+
+        return self.data.columns[-1], "fallback_last_column"
+
+    def _clean_data(self, df, target_col):
+        """Cleans nulls robustly while preventing target leakage."""
+        cleaned = df.copy()
+        rows_before = len(cleaned)
+        target_nulls = cleaned[target_col].isna().sum()
+        if target_nulls > 0:
+            cleaned = cleaned[cleaned[target_col].notna()].copy()
+
+        feature_cols = [c for c in cleaned.columns if c != target_col]
+        num_cols = cleaned[feature_cols].select_dtypes(include=[np.number]).columns
+        cat_cols = cleaned[feature_cols].select_dtypes(exclude=[np.number]).columns
+
+        for col in num_cols:
+            median = cleaned[col].median()
+            cleaned[col] = cleaned[col].fillna(0.0 if pd.isna(median) else median)
+
+        for col in cat_cols:
+            mode = cleaned[col].mode(dropna=True)
+            fill_val = mode.iloc[0] if len(mode) > 0 else "unknown"
+            cleaned[col] = cleaned[col].fillna(fill_val)
+
+        if len(cleaned) == 0:
+            print("❌ Error: No rows left after target null cleanup.")
+            return None, None
+
+        clean_report = {
+            "rows_before": int(rows_before),
+            "rows_after": int(len(cleaned)),
+            "target_null_rows_dropped": int(target_nulls),
+            "feature_nulls_before": int(df[feature_cols].isna().sum().sum()),
+            "feature_nulls_after": int(cleaned[feature_cols].isna().sum().sum()),
+        }
+        return cleaned, clean_report
 
     def load_data(self):
         """Loads the CSV file into a Pandas DataFrame safely."""
@@ -44,29 +102,35 @@ class DatasetAnalyzer:
             return None
 
         # 1. Target Column Detection
-        if self.target_col is None:
-            self.target_col = self.data.columns[-1]
-            print(f"  Auto-detected Target Column: '{self.target_col}'")
-        elif self.target_col not in self.data.columns:
-            print(f"❌ Error: Target column '{self.target_col}' not found in dataset.")
+        detected_target, detection_method = self._detect_target_column()
+        if detected_target is None:
             return None
+        self.target_col = detected_target
+        print(f"  Auto-detected Target Column: '{self.target_col}' ({detection_method})")
+
+        cleaned, clean_report = self._clean_data(self.data, self.target_col)
+        if cleaned is None:
+            return None
+        self.cleaned_data = cleaned
+        self.meta_features["target_detection_method"] = detection_method
+        self.meta_features["cleaning_report"] = clean_report
 
         # 2. Feature Separation
-        features = self.data.drop(columns=[self.target_col])
-        target = self.data[self.target_col]
+        features = self.cleaned_data.drop(columns=[self.target_col])
+        target = self.cleaned_data[self.target_col]
 
         num_cols = features.select_dtypes(include=[np.number]).columns
         cat_cols = features.select_dtypes(exclude=[np.number]).columns
 
         # === DIMENSIONALITY & STRUCTURE ===
-        self.meta_features['n_instances'] = len(self.data)
+        self.meta_features['n_instances'] = len(self.cleaned_data)
         self.meta_features['n_features'] = len(features.columns)
         self.meta_features['n_numerical'] = len(num_cols)
         self.meta_features['n_categorical'] = len(cat_cols)
         self.meta_features['dimensionality'] = len(features.columns) / len(self.data)
 
         # === DATA QUALITY ===
-        missing_ratio = self.data.isnull().sum().sum() / self.data.size
+        missing_ratio = self.data.isnull().sum().sum() / self.data.size if self.data.size > 0 else 0.0
         zero_ratio = 0.0
         if len(num_cols) > 0:
             zero_ratio = (features[num_cols] == 0).sum().sum() / features[num_cols].size
@@ -214,5 +278,4 @@ class DatasetAnalyzer:
         _print_row("Sparsity/Missing", self.meta_features.get('sparsity', 0))
         _print_row("Imbalance Ratio", self.meta_features.get('class_imbalance_ratio', 0))
         print("="*60)
-
 
