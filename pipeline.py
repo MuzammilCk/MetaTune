@@ -35,8 +35,13 @@ class MetaTunePipeline:
         # PHASE 1: DIAGNOSIS
         print("\n🔹 PHASE 1: Forensic Data Analysis")
         analyzer = DatasetAnalyzer(self.data_path, target_col=self.target_col)
-        if not analyzer.load_data(): return None
+        if not analyzer.load_data():
+            print("❌ Pipeline aborted: failed to load dataset.")
+            return None
         self.dataset_dna = analyzer.analyze()
+        if not isinstance(self.dataset_dna, dict):
+            print("❌ Pipeline aborted: dataset analysis failed, no DNA produced.")
+            return None
         print(f"   ✓ Task Type: {self.dataset_dna.get('task_type', 'Unknown')}")
         print(f"   ✓ Complexity Score: {self.dataset_dna.get('target_entropy', 0):.3f}")
 
@@ -141,5 +146,4 @@ if __name__ == "__main__":
     
     pipeline = MetaTunePipeline(args.data, target_col=args.target)
     pipeline.run(epochs=args.epochs)
-
 

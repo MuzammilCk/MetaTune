@@ -53,6 +53,13 @@ class AgentState(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+class FailureType(str, Enum):
+    DATA = "data_error"
+    TRAINING = "training_error"
+    APPROVAL = "approval_error"
+    IO = "io_error"
+    UNKNOWN = "unknown_error"
+
 # ==========================================
 # 2. Episodic Memory Manager
 # ==========================================
@@ -60,7 +67,11 @@ class AgentState(str, Enum):
 class EpisodicMemory:
     def __init__(self, memory_file="episodic_memory.json"):
         self.memory_file = memory_file
-        self.state = {
+        self.state = self._new_state()
+        self.load()
+
+    def _new_state(self) -> Dict[str, Any]:
+        return {
             "run_id": str(uuid.uuid4()),
             "data_path": None,
             "dataset_fingerprint": None,
@@ -74,7 +85,6 @@ class EpisodicMemory:
             "failure_reason": None,
             "timestamp": time.time()
         }
-        self.load()
 
     def generate_fingerprint(self, data_path: str) -> str:
         if not os.path.exists(data_path):
@@ -85,6 +95,12 @@ class EpisodicMemory:
         return hashlib.md5(raw_sig.encode()).hexdigest()
 
     def load(self, force_new=False):
+        if force_new:
+            self.state = self._new_state()
+            self.save()
+            print(f"📂 [Memory] Starting fresh run {self.state['run_id']}")
+            return
+
         if not force_new and os.path.exists(self.memory_file):
             try:
                 with open(self.memory_file, 'r') as f:
@@ -105,13 +121,16 @@ class EpisodicMemory:
         except Exception as e:
             print(f"⚠️ [Memory] Failed to save memory: {e}")
 
-    def log_action(self, action: ActionType, status: str, result: str = ""):
-        self.state["actions_taken"].append({
+    def log_action(self, action: ActionType, status: str, result: Any = "", failure_type: Optional[FailureType] = None):
+        event = {
             "action": action.value,
             "status": status,
-            "result": result,
+            "result": result if isinstance(result, str) else json.dumps(result, cls=NumpyEncoder),
+            "details": result if isinstance(result, dict) else {"message": str(result)},
+            "failure_type": failure_type.value if failure_type else None,
             "timestamp": time.time()
-        })
+        }
+        self.state["actions_taken"].append(event)
         self.save()
 
 # ==========================================
@@ -119,22 +138,21 @@ class EpisodicMemory:
 # ==========================================
 
 class MetaTuneAgent:
-    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False):
+    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: str = "episodic_memory.json"):
         self.data_path = data_path
         self.target_col = target_col
         self.metric_threshold = metric_threshold
         self.use_bilevel = use_bilevel
+        self.approval_mode = approval_mode
         
-        self.memory = EpisodicMemory()
+        self.memory = EpisodicMemory(memory_file=memory_file)
         if force_new:
-            self.memory.state["status"] = AgentState.COMPLETED.value
-            self.memory.load(force_new=True) # Reset
+            self.memory.load(force_new=True)
         
         # Check tracking consistency
         fingerprint = self.memory.generate_fingerprint(data_path)
         if self.memory.state.get("dataset_fingerprint") and self.memory.state["dataset_fingerprint"] != fingerprint:
             print(f"⚠️ [Agent] Dataset has changed since last run. Starting memory fresh.")
-            self.memory.state["status"] = AgentState.COMPLETED.value
             self.memory.load(force_new=True)
 
         self.memory.state["data_path"] = data_path
@@ -143,9 +161,18 @@ class MetaTuneAgent:
         
         self.meta_learner = MetaLearner()
 
-    def request_approval(self, prompt: str, auto_approve: bool = False) -> bool:
+    def request_approval(self, prompt: str, auto_approve: bool = False, default_response: bool = False) -> bool:
+        if self.approval_mode == "full-auto":
+            return True
+        if self.approval_mode == "semi-auto":
+            return auto_approve or default_response
         if auto_approve:
             return True
+
+        if not sys.stdin.isatty():
+            print(f"⚠️ [APPROVAL GATE] Non-interactive shell detected. Using default response: {default_response}")
+            return default_response
+
         print(f"\n✋ [APPROVAL GATE] {prompt}")
         while True:
             response = input("   Approve? (y/n): ").strip().lower()
@@ -153,6 +180,18 @@ class MetaTuneAgent:
                 return True
             if response in ['n', 'no']:
                 return False
+
+    def _classify_failure(self, exc: Exception) -> FailureType:
+        msg = str(exc).lower()
+        if any(k in msg for k in ["csv", "dataset", "column", "data", "load"]):
+            return FailureType.DATA
+        if any(k in msg for k in ["permission", "approve", "input"]):
+            return FailureType.APPROVAL
+        if any(k in msg for k in ["file", "path", "write", "read", "json"]):
+            return FailureType.IO
+        if any(k in msg for k in ["train", "optimizer", "metric", "epoch"]):
+            return FailureType.TRAINING
+        return FailureType.UNKNOWN
 
     def planner(self) -> ActionType:
         """Rule-based goal decomposition."""
@@ -184,7 +223,10 @@ class MetaTuneAgent:
                     raise ValueError("Failed to load dataset for analysis.")
                 dna = analyzer.analyze()
                 self.memory.state["dataset_dna"] = dna
-                self.memory.log_action(action, "success", f"Extracted {len(dna)} DNA features")
+                self.memory.log_action(action, "success", {
+                    "message": "Dataset analysis completed",
+                    "dna_feature_count": len(dna),
+                })
                 
             elif action == ActionType.PROPOSE_SEARCH_SPACE:
                 dna = self.memory.state.get("dataset_dna")
@@ -197,17 +239,21 @@ class MetaTuneAgent:
                 # Check for MetaBrain memory overwrite approval
                 if self.meta_learner.knowledge_base_ready:
                     # Optional: train brain slightly with existing memory
-                    if self.request_approval("MetaBrain is ready to learn from accumulated experience (weights update). Train MetaBrain prior to predicting?", auto_approve=False):
+                    if self.request_approval("MetaBrain is ready to learn from accumulated experience (weights update). Train MetaBrain prior to predicting?", auto_approve=False, default_response=False):
                         self.meta_learner.train()
                 
-                self.memory.log_action(action, "success", f"Predicted params: {params}")
+                self.memory.log_action(action, "success", {
+                    "message": "Search space proposed",
+                    "predicted_params": params,
+                    "recommended_algorithms": algos,
+                })
 
             elif action == ActionType.RUN_TRIAL:
                 params = self.memory.state.get("predicted_params")
                 dna = self.memory.state.get("dataset_dna")
                 
                 if self.use_bilevel:
-                    if self.request_approval(f"Proceed with Expensive Bilevel Optimization (N=trials, Evolutionary tuning)?", auto_approve=False):
+                    if self.request_approval(f"Proceed with Expensive Bilevel Optimization (N=trials, Evolutionary tuning)?", auto_approve=False, default_response=False):
                         import pandas as pd
                         from sklearn.model_selection import train_test_split
                         
@@ -228,17 +274,24 @@ class MetaTuneAgent:
                 
                 self.memory.state["trial_results"] = results
                 self.memory.state["final_metric"] = results.get("final_metric", 0.0)
-                self.memory.log_action(action, "success", f"Metric: {results.get('final_metric', 0.0)}")
+                self.memory.log_action(action, "success", {
+                    "message": "Training trial completed",
+                    "final_metric": results.get("final_metric", 0.0),
+                    "metric_name": results.get("metric_name"),
+                })
                 
                 # Store experience back into KB after trials
-                if self.request_approval("Store trial experience logically back to Knowledge Base?", auto_approve=True):
+                if self.request_approval("Store trial experience logically back to Knowledge Base?", auto_approve=True, default_response=True):
                      self.meta_learner.store_experience(dna, params, self.memory.state["final_metric"])
 
             elif action == ActionType.DIAGNOSE_FAILURE:
                 failure = f"Metric ({self.memory.state.get('final_metric', 0.0)}) fell below threshold ({self.metric_threshold})."
                 self.memory.state["failure_reason"] = failure
                 print(f"   Diagnosis: {failure}")
-                self.memory.log_action(action, "success", failure)
+                self.memory.log_action(action, "success", {
+                    "message": "Failure diagnosed",
+                    "reason": failure,
+                }, failure_type=FailureType.TRAINING)
 
             elif action == ActionType.REVISE_STRATEGY:
                 print(f"   [Revise] Suggesting fallback logic — e.g. reducing LR or expanding search space.")
@@ -246,14 +299,22 @@ class MetaTuneAgent:
                 params = self.memory.state.get("predicted_params", {})
                 if 'learning_rate' in params: params['learning_rate'] /= 2.0
                 self.memory.state["predicted_params"] = params
-                self.memory.log_action(action, "success", "Halved learning rate for next trial")
+                self.memory.log_action(action, "success", {
+                    "message": "Strategy revised",
+                    "revision": "Halved learning rate for next trial",
+                    "updated_params": params,
+                })
                 # For MVP, we'll mark this complete and abort out of loops for safety
                 self.memory.state["status"] = AgentState.COMPLETED.value
             
             return True
 
         except Exception as e:
-            self.memory.log_action(action, "failed", str(e))
+            failure_type = self._classify_failure(e)
+            self.memory.log_action(action, "failed", {
+                "message": str(e),
+                "exception_type": type(e).__name__,
+            }, failure_type=failure_type)
             self.memory.state["failure_reason"] = str(e)
             self.memory.state["status"] = AgentState.FAILED.value
             self.memory.save()
@@ -311,7 +372,7 @@ class MetaTuneAgent:
         print("\n🎉 [Agent] Flow complete. Generating final artifacts...")
         # Export logic implementation
         if self.memory.state["status"] == AgentState.COMPLETED.value:
-            if self.request_approval("Export fully deployable package (.joblib/.pth)?"):
+            if self.request_approval("Export fully deployable package (.joblib/.pth)?", default_response=False):
                 print("   📦 Exporting model artifacts to local directory.")
                 # We would normally invoke `train_and_package` here to serialize a production artifact.
                 # Simulated for the MVP hook
@@ -328,6 +389,7 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.0, help="Minimum acceptable metric (Critic gate)")
     parser.add_argument("--bilevel", action="store_true", help="Launch bilevel optimizer search space")
     parser.add_argument("--new", action="store_true", help="Force ignore past episodic memory and start fresh")
+    parser.add_argument("--approval-mode", choices=["manual", "semi-auto", "full-auto"], default="manual", help="Approval policy: manual prompts, semi-auto defaults, or full-auto allow")
     args = parser.parse_args()
 
     agent = MetaTuneAgent(
@@ -335,7 +397,8 @@ def main():
         target_col=args.target, 
         metric_threshold=args.threshold,
         use_bilevel=args.bilevel,
-        force_new=args.new
+        force_new=args.new,
+        approval_mode=args.approval_mode
     )
     agent.run()
 

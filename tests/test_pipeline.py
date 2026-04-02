@@ -68,5 +68,12 @@ class TestPipeline(unittest.TestCase):
         except KeyError as e:
             self.fail(f"_visualize() raised KeyError: {e}")
 
+    @patch('pipeline.DatasetAnalyzer.analyze', return_value=None)
+    @patch('pipeline.DatasetAnalyzer.load_data', return_value=True)
+    def test_pipeline_handles_missing_dna_gracefully(self, _mock_load, _mock_analyze):
+        pipeline = MetaTunePipeline(self.test_csv, target_col='target')
+        results = pipeline.run(epochs=1)
+        self.assertIsNone(results)
+
 if __name__ == '__main__':
     unittest.main()
