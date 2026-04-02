@@ -162,6 +162,102 @@ class TestAgentOrchestration(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("max_trials", reason)
 
+    def test_memory_architecture_working_episodic_semantic(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            memory_file = os.path.join(tmpdir, "episodic_memory.json")
+            mem = EpisodicMemory(memory_file=memory_file)
+            dna = {
+                "task_type": "classification",
+                "n_features": 24,
+                "n_instances": 4200,
+                "sparsity": 0.2,
+            }
+            mem.set_working_memory("dataset_profile", {"task_type": "classification"})
+            mem.add_episode("inspect_dataset", {"dna_feature_count": 10})
+            mem.update_semantic_memory(dna=dna, metric=0.81, params={"learning_rate": 0.01})
+            retrieved = mem.retrieve_semantic_context(dna=dna, top_k=1)
+
+            self.assertIn("dataset_profile", mem.state["working_memory"])
+            self.assertGreaterEqual(len(mem.state["episodic_memory"]), 1)
+            self.assertGreaterEqual(len(mem.state["semantic_memory"]), 1)
+            self.assertEqual(len(retrieved), 1)
+            self.assertIn("score", retrieved[0])
+
+    def test_postmortem_is_persisted(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            memory_file = os.path.join(tmpdir, "episodic_memory.json")
+            mem = EpisodicMemory(memory_file=memory_file)
+            mem.add_postmortem(
+                action=ActionType.RUN_TRIAL,
+                failure_type=FailureType.TRAINING,
+                message="metric dropped",
+                tags=["training_error", "regression"],
+            )
+            self.assertEqual(len(mem.state["postmortems"]), 1)
+            self.assertEqual(mem.state["postmortems"][0]["failure_type"], FailureType.TRAINING.value)
+
+    def test_preflight_checks_detect_blockers_and_issues(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            report = agent._run_preflight_checks({
+                "task_type": "classification",
+                "n_features": 0,
+                "missing_ratio": 0.75,
+                "class_imbalance_ratio": 50,
+            })
+            self.assertFalse(report["ok"])
+            self.assertIn("no_features", report["blockers"])
+            self.assertIn("high_missing_ratio", report["issues"])
+            self.assertIn("high_class_imbalance", report["issues"])
+
+    def test_planner_writes_machine_readable_decision_trace(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            plan = agent.planner()
+            self.assertIsNotNone(plan)
+            self.assertGreaterEqual(len(agent.memory.state["decision_traces"]), 1)
+            last_trace = agent.memory.state["decision_traces"][-1]
+            self.assertEqual(last_trace["stage"], "planner")
+            self.assertEqual(last_trace["decision"], "selected")
+
+    def test_low_confidence_abstention_on_run_trial(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            agent.memory.state["dataset_dna"] = {
+                "task_type": "classification",
+                "missing_ratio": 0.95,
+                "sparsity": 0.95,
+            }
+            agent.memory.state["working_memory"]["semantic_context"] = []
+            result = agent.executor(ActionType.RUN_TRIAL, rationale="abstention-test")
+            self.assertFalse(result["success"])
+            self.assertEqual(result["error_class"], "abstained_low_confidence")
+            self.assertGreaterEqual(len(agent.memory.state["abstentions"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

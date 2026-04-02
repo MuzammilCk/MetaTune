@@ -20,8 +20,8 @@
 |---|---|---|---|
 | Phase 1 | Agent runtime hardening | ✅ Done | Added confidence calibration + action-level time/cost accounting |
 | Phase 2 | Tooling architecture | ✅ Done | Registry dispatch + retry policies + guardrails are live |
-| Phase 3 | Memory architecture | ⬜ Not started | Working/episodic/semantic split pending |
-| Phase 4 | Explainability & governance | ⬜ Not started | Decision traces and safety checks pending |
+| Phase 3 | Memory architecture | 🟡 In progress | Working/Episodic/Semantic stores + retrieval + postmortem tags added |
+| Phase 4 | Explainability & governance | 🟡 In progress | Decision traces + preflight checks + abstention policy added |
 | Phase 5 | Multi-agent evolution | ⬜ Not started | Specialist agents + coordinator pending |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
@@ -91,6 +91,34 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
   - `max_trials` limit for trial actions,
   - rollback recommendation signal when metric regresses between trials.
 
+### 3.7 Memory architecture (Phase 3 started)
+- Added explicit memory split in runtime state:
+  - `working_memory` (short-lived run context),
+  - `episodic_memory` (timestamped event timeline),
+  - `semantic_memory` (bucketed reusable priors by dataset signature).
+- Added semantic retrieval scoring (`retrieve_semantic_context`) for nearest prior experiences.
+- Added postmortem persistence (`postmortems[]`) with failure tags for root-cause analysis.
+- Connected memory updates into runtime handlers:
+  - inspect -> working + episodic + semantic retrieval context,
+  - trial -> episodic + semantic upsert + working metric,
+  - failures -> postmortem tagging.
+
+### 3.8 Explainability & governance (Phase 4 started)
+- Added machine-readable decision traces (`decision_traces[]`) for:
+  - planner selections,
+  - guardrail blocks,
+  - abstention decisions,
+  - preflight gate outcomes.
+- Added preflight checks prior to expensive execution:
+  - unknown task/no-feature blockers,
+  - high missing ratio warning,
+  - high class-imbalance warning,
+  - metric-threshold mismatch warning for classification.
+- Added uncertainty/abstention policy for low-confidence trial execution:
+  - computes confidence from data quality + semantic memory match,
+  - records abstentions in `abstentions[]`,
+  - skips unsafe low-confidence trial execution.
+
 ### 3.4 Pipeline resilience
 - Pipeline now aborts safely when:
   - dataset load fails,
@@ -131,26 +159,26 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 - [x] Implement `ToolRegistry` with typed schemas
 - [x] Route planner actions through registry (no direct hardcoded execution path)
 - [x] Add retry strategy by error class (`transient`, `data`, `logic`, `resource`)
-- [ ] Add guardrails:
+- [x] Add guardrails:
   - [x] max trials
   - [x] max runtime
   - [x] rollback on regression
 
 ## Phase 3 — Memory architecture
-- [ ] Split memory into:
-  - [ ] working memory
-  - [ ] episodic memory
-  - [ ] semantic memory
-- [ ] Add retrieval scoring for prior episodes
-- [ ] Add postmortem + root-cause tags
+- [x] Split memory into:
+  - [x] working memory
+  - [x] episodic memory
+  - [x] semantic memory
+- [x] Add retrieval scoring for prior episodes
+- [x] Add postmortem + root-cause tags
 
 ## Phase 4 — Explainability & governance
-- [ ] Machine-readable decision traces
-- [ ] Preflight checks:
+- [x] Machine-readable decision traces
+- [x] Preflight checks:
   - [ ] leakage
-  - [ ] imbalance risk
-  - [ ] metric/task mismatch
-- [ ] Uncertainty/abstention policy
+  - [x] imbalance risk
+  - [x] metric/task mismatch
+- [x] Uncertainty/abstention policy
 
 ## Phase 5 — Multi-agent evolution
 - [ ] Data Forensics Agent

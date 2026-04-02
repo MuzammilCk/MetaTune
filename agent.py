@@ -101,6 +101,13 @@ class EpisodicMemory:
             "recommended_algorithms": None,
             "actions_taken": [],
             "action_costs": [],
+            "working_memory": {},
+            "episodic_memory": [],
+            "semantic_memory": {},
+            "postmortems": [],
+            "decision_traces": [],
+            "preflight_checks": [],
+            "abstentions": [],
             "trial_results": None,
             "final_metric": None,
             "status": AgentState.IDLE.value,
@@ -158,6 +165,109 @@ class EpisodicMemory:
             "timestamp": time.time()
         }
         self.state["actions_taken"].append(event)
+        self.save()
+
+    def set_working_memory(self, key: str, value: Any):
+        self.state["working_memory"][key] = value
+        self.save()
+
+    def add_episode(self, episode_type: str, payload: Dict[str, Any]):
+        self.state["episodic_memory"].append({
+            "type": episode_type,
+            "payload": payload,
+            "timestamp": time.time(),
+        })
+        self.save()
+
+    def _semantic_key_from_dna(self, dna: Dict[str, Any]) -> str:
+        task = dna.get("task_type", "unknown")
+        n_feat_bucket = int(float(dna.get("n_features", 0)) // 10)
+        sparsity_bucket = round(float(dna.get("sparsity", 0.0)), 1)
+        n_inst_bucket = int(float(dna.get("n_instances", 0)) // 1000)
+        return f"{task}|f{n_feat_bucket}|s{sparsity_bucket}|n{n_inst_bucket}"
+
+    def update_semantic_memory(self, dna: Dict[str, Any], metric: float, params: Optional[Dict[str, Any]] = None):
+        key = self._semantic_key_from_dna(dna)
+        node = self.state["semantic_memory"].get(key, {
+            "key": key,
+            "task_type": dna.get("task_type", "unknown"),
+            "run_count": 0,
+            "avg_metric": 0.0,
+            "last_metric": 0.0,
+            "last_params": {},
+            "last_updated": 0.0,
+        })
+        run_count = int(node["run_count"]) + 1
+        prev_avg = float(node.get("avg_metric", 0.0))
+        node["avg_metric"] = ((prev_avg * (run_count - 1)) + float(metric)) / run_count
+        node["run_count"] = run_count
+        node["last_metric"] = float(metric)
+        node["last_params"] = params or node.get("last_params", {})
+        node["last_updated"] = time.time()
+        self.state["semantic_memory"][key] = node
+        self.save()
+
+    def retrieve_semantic_context(self, dna: Dict[str, Any], top_k: int = 3) -> List[Dict[str, Any]]:
+        if not self.state["semantic_memory"]:
+            return []
+        task = dna.get("task_type", "unknown")
+        n_features = float(dna.get("n_features", 0.0))
+        n_instances = float(dna.get("n_instances", 0.0))
+        sparsity = float(dna.get("sparsity", 0.0))
+        scored = []
+        for node in self.state["semantic_memory"].values():
+            task_score = 1.0 if node.get("task_type") == task else 0.3
+            key_parts = node["key"].split("|")
+            try:
+                f_bucket = float(key_parts[1].lstrip("f")) * 10.0
+                s_bucket = float(key_parts[2].lstrip("s"))
+                n_bucket = float(key_parts[3].lstrip("n")) * 1000.0
+            except Exception:
+                f_bucket, s_bucket, n_bucket = 0.0, 0.0, 0.0
+            feat_score = 1.0 / (1.0 + abs(n_features - f_bucket) / 50.0)
+            inst_score = 1.0 / (1.0 + abs(n_instances - n_bucket) / 5000.0)
+            sparse_score = 1.0 / (1.0 + abs(sparsity - s_bucket) / 0.5)
+            metric_score = max(0.0, min(1.0, float(node.get("avg_metric", 0.0))))
+            final = (0.35 * task_score) + (0.2 * feat_score) + (0.2 * inst_score) + (0.15 * sparse_score) + (0.1 * metric_score)
+            scored.append((final, node))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [{"score": round(score, 4), **node} for score, node in scored[:top_k]]
+
+    def add_postmortem(self, action: ActionType, failure_type: FailureType, message: str, tags: List[str]):
+        self.state["postmortems"].append({
+            "action": action.value,
+            "failure_type": failure_type.value,
+            "message": message,
+            "tags": tags,
+            "timestamp": time.time(),
+        })
+        self.save()
+
+    def add_decision_trace(self, stage: str, action: str, decision: str, rationale: str, confidence: Optional[float] = None):
+        self.state["decision_traces"].append({
+            "stage": stage,
+            "action": action,
+            "decision": decision,
+            "rationale": rationale,
+            "confidence": confidence,
+            "timestamp": time.time(),
+        })
+        self.save()
+
+    def add_preflight_check(self, report: Dict[str, Any]):
+        self.state["preflight_checks"].append({
+            **report,
+            "timestamp": time.time(),
+        })
+        self.save()
+
+    def add_abstention(self, action: ActionType, reason: str, confidence: float):
+        self.state["abstentions"].append({
+            "action": action.value,
+            "reason": reason,
+            "confidence": confidence,
+            "timestamp": time.time(),
+        })
         self.save()
 
 # ==========================================
@@ -249,11 +359,32 @@ class MetaTuneAgent:
             raise ValueError("Failed to load dataset for analysis.")
         dna = analyzer.analyze()
         self.memory.state["dataset_dna"] = dna
+        semantic_context = self.memory.retrieve_semantic_context(dna, top_k=3)
+        self.memory.set_working_memory("semantic_context", semantic_context)
+        self.memory.set_working_memory("dataset_profile", {
+            "task_type": dna.get("task_type"),
+            "n_features": dna.get("n_features"),
+            "n_instances": dna.get("n_instances"),
+            "sparsity": dna.get("sparsity"),
+        })
         details = {
             "message": "Dataset analysis completed",
             "dna_feature_count": len(dna),
+            "semantic_hits": len(semantic_context),
         }
         self.memory.log_action(ActionType.INSPECT_DATASET, "success", details)
+        self.memory.add_episode("inspect_dataset", details)
+        preflight = self._run_preflight_checks(dna)
+        self.memory.add_preflight_check(preflight)
+        self.memory.add_decision_trace(
+            stage="preflight",
+            action=ActionType.INSPECT_DATASET.value,
+            decision="pass" if preflight["ok"] else "block",
+            rationale=preflight["summary"],
+            confidence=1.0 if preflight["ok"] else 0.2,
+        )
+        if not preflight["ok"]:
+            raise ValueError(f"Preflight checks failed: {preflight['summary']}")
         return details
 
     def _tool_propose_search_space(self) -> Dict[str, Any]:
@@ -273,6 +404,8 @@ class MetaTuneAgent:
             "recommended_algorithms": algos,
         }
         self.memory.log_action(ActionType.PROPOSE_SEARCH_SPACE, "success", details)
+        self.memory.set_working_memory("latest_params", params)
+        self.memory.add_episode("propose_search_space", {"n_algorithms": len(algos.get("recommendations", [])) if isinstance(algos, dict) else 0})
         return details
 
     def _tool_run_trial(self) -> Dict[str, Any]:
@@ -314,6 +447,9 @@ class MetaTuneAgent:
             "rollback_recommended": rollback_recommended,
         }
         self.memory.log_action(ActionType.RUN_TRIAL, "success", details)
+        self.memory.add_episode("run_trial", details)
+        self.memory.update_semantic_memory(dna=dna, metric=current_metric, params=params)
+        self.memory.set_working_memory("latest_metric", current_metric)
 
         if self.request_approval("Store trial experience logically back to Knowledge Base?", auto_approve=True, default_response=True):
              self.meta_learner.store_experience(dna, params, self.memory.state["final_metric"])
@@ -325,6 +461,7 @@ class MetaTuneAgent:
         print(f"   Diagnosis: {failure}")
         details = {"message": "Failure diagnosed", "reason": failure}
         self.memory.log_action(ActionType.DIAGNOSE_FAILURE, "success", details, failure_type=FailureType.TRAINING)
+        self.memory.add_episode("diagnose_failure", details)
         return details
 
     def _tool_revise_strategy(self) -> Dict[str, Any]:
@@ -339,6 +476,7 @@ class MetaTuneAgent:
             "updated_params": params,
         }
         self.memory.log_action(ActionType.REVISE_STRATEGY, "success", details)
+        self.memory.add_episode("revise_strategy", details)
         self.memory.state["status"] = AgentState.COMPLETED.value
         return details
 
@@ -408,6 +546,52 @@ class MetaTuneAgent:
         }
         self.memory.save()
 
+    def _run_preflight_checks(self, dna: Dict[str, Any]) -> Dict[str, Any]:
+        issues = []
+        blockers = []
+        task_type = dna.get("task_type")
+        if task_type not in {"classification", "regression"}:
+            blockers.append("unknown_task_type")
+        if float(dna.get("n_features", 0)) <= 0:
+            blockers.append("no_features")
+
+        missing_ratio = float(dna.get("missing_ratio", 0.0) or 0.0)
+        if missing_ratio > 0.6:
+            issues.append("high_missing_ratio")
+
+        if task_type == "classification":
+            imbalance = float(dna.get("class_imbalance_ratio", 0.0) or 0.0)
+            if imbalance > 20:
+                issues.append("high_class_imbalance")
+
+        if task_type == "classification" and self.metric_threshold > 1.0:
+            issues.append("metric_threshold_out_of_range_for_classification")
+
+        ok = len(blockers) == 0
+        summary = "preflight_ok" if ok else f"blockers={','.join(blockers)}"
+        return {
+            "ok": ok,
+            "issues": issues,
+            "blockers": blockers,
+            "summary": summary,
+            "task_type": task_type,
+            "missing_ratio": missing_ratio,
+        }
+
+    def _should_abstain(self, action: ActionType) -> Optional[Dict[str, Any]]:
+        if action != ActionType.RUN_TRIAL:
+            return None
+        dna = self.memory.state.get("dataset_dna") or {}
+        context = self.memory.state.get("working_memory", {}).get("semantic_context", [])
+        top_context_score = float(context[0]["score"]) if context else 0.0
+        missing_ratio = float(dna.get("missing_ratio", 0.0) or 0.0)
+        sparsity = float(dna.get("sparsity", 0.0) or 0.0)
+        confidence = max(0.0, min(1.0, 0.6 + (0.3 * top_context_score) - (0.4 * missing_ratio) - (0.3 * sparsity)))
+        if confidence < 0.35:
+            reason = "low_confidence_abstention: insufficient prior memory match + poor data quality"
+            return {"reason": reason, "confidence": confidence}
+        return None
+
     def planner(self) -> Optional[Dict[str, Any]]:
         """Policy planner with simple task-graph, uncertainty, and budget awareness."""
         completed = {ActionType(a["action"]) for a in self.memory.state["actions_taken"] if a["status"] == "success"}
@@ -448,6 +632,13 @@ class MetaTuneAgent:
         _, selected = max(candidates, key=lambda x: x[0])
         rationale = f"Selected {selected.value}: deps_satisfied, uncertainty={uncertainty:.2f}, remaining_budget={remaining_budget}."
         self.memory.state["policy_trace"].append({"action": selected.value, "rationale": rationale, "timestamp": time.time()})
+        self.memory.add_decision_trace(
+            stage="planner",
+            action=selected.value,
+            decision="selected",
+            rationale=rationale,
+            confidence=max(0.05, min(0.99, 1.0 - uncertainty * 0.4)),
+        )
         self.memory.save()
         return {"action": selected, "rationale": rationale, "remaining_budget": remaining_budget, "uncertainty": uncertainty}
 
@@ -463,6 +654,13 @@ class MetaTuneAgent:
             duration_sec = max(0.0, time.time() - started_at)
             confidence = self._estimate_confidence(action, success=False, duration_sec=duration_sec, error_class="resource_limit")
             self._record_action_cost(action, duration_sec=duration_sec, success=False, error_class="resource_limit")
+            self.memory.add_decision_trace(
+                stage="guardrail",
+                action=action.value,
+                decision="blocked",
+                rationale=guardrail_reason,
+                confidence=confidence,
+            )
             return {
                 "success": False,
                 "confidence": confidence,
@@ -475,6 +673,32 @@ class MetaTuneAgent:
         spec = self.tool_registry.get(action)
         if spec is None:
             raise ValueError(f"No ToolRegistry entry for action: {action.value}")
+
+        abstention = self._should_abstain(action)
+        if abstention:
+            duration_sec = max(0.0, time.time() - started_at)
+            self.memory.add_abstention(action, abstention["reason"], abstention["confidence"])
+            self.memory.add_decision_trace(
+                stage="abstention",
+                action=action.value,
+                decision="abstained",
+                rationale=abstention["reason"],
+                confidence=abstention["confidence"],
+            )
+            self._record_action_cost(action, duration_sec=duration_sec, success=False, error_class="abstained_low_confidence")
+            return {
+                "success": False,
+                "confidence": abstention["confidence"],
+                "cost": {
+                    "actions_used": len(self.memory.state["actions_taken"]),
+                    "duration_sec": round(duration_sec, 4),
+                    "attempts": 0,
+                    "cost_summary": self.memory.state.get("cost_summary", {}),
+                },
+                "artifacts": {"action": action.value},
+                "error_class": "abstained_low_confidence",
+                "rationale": f"{rationale} | {abstention['reason']}",
+            }
 
         attempts = 0
         while True:
@@ -512,6 +736,8 @@ class MetaTuneAgent:
                     "exception_type": type(e).__name__,
                     "attempts": attempts,
                 }, failure_type=failure_type)
+                postmortem_tags = [failure_type.value, action.value, "retry_exhausted" if attempts > 1 else "single_failure"]
+                self.memory.add_postmortem(action, failure_type, str(e), tags=postmortem_tags)
                 self.memory.state["failure_reason"] = str(e)
                 self.memory.state["status"] = AgentState.FAILED.value
                 self.memory.save()
