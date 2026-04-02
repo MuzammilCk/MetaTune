@@ -374,7 +374,12 @@ class MetaTuneAgent:
         }
         self.memory.log_action(ActionType.INSPECT_DATASET, "success", details)
         self.memory.add_episode("inspect_dataset", details)
-        preflight = self._run_preflight_checks(dna)
+        leakage_signals = self._detect_data_leakage_signals(
+            data=getattr(analyzer, "cleaned_data", None),
+            target_col=getattr(analyzer, "target_col", None),
+            task_type=dna.get("task_type"),
+        )
+        preflight = self._run_preflight_checks(dna, leakage_signals=leakage_signals)
         self.memory.add_preflight_check(preflight)
         self.memory.add_decision_trace(
             stage="preflight",
@@ -546,7 +551,45 @@ class MetaTuneAgent:
         }
         self.memory.save()
 
-    def _run_preflight_checks(self, dna: Dict[str, Any]) -> Dict[str, Any]:
+    def _detect_data_leakage_signals(self, data: Any, target_col: Optional[str], task_type: Optional[str]) -> List[str]:
+        signals = []
+        if data is None or target_col is None or target_col not in getattr(data, "columns", []):
+            return signals
+
+        import pandas as pd
+
+        feature_cols = [c for c in data.columns if c != target_col]
+        leakage_name_tokens = ["target", "label", "outcome", "y_true", "ground_truth"]
+        for col in feature_cols:
+            col_norm = str(col).lower()
+            if any(tok in col_norm for tok in leakage_name_tokens):
+                signals.append(f"suspicious_feature_name:{col}")
+
+        target = data[target_col]
+        for col in feature_cols:
+            series = data[col]
+            try:
+                if series.equals(target):
+                    signals.append(f"feature_equals_target:{col}")
+                    continue
+            except Exception:
+                pass
+
+            if pd.api.types.is_numeric_dtype(series) and pd.api.types.is_numeric_dtype(target):
+                valid = pd.concat([series, target], axis=1).dropna()
+                if len(valid) >= 5:
+                    corr = valid.iloc[:, 0].corr(valid.iloc[:, 1])
+                    if corr is not None and abs(float(corr)) >= 0.995:
+                        signals.append(f"near_perfect_corr:{col}")
+            elif task_type == "classification":
+                valid = pd.concat([series.astype(str), target.astype(str)], axis=1).dropna()
+                if len(valid) >= 5:
+                    match_ratio = (valid.iloc[:, 0] == valid.iloc[:, 1]).mean()
+                    if float(match_ratio) >= 0.995:
+                        signals.append(f"feature_matches_target_tokens:{col}")
+        return sorted(set(signals))
+
+    def _run_preflight_checks(self, dna: Dict[str, Any], leakage_signals: Optional[List[str]] = None) -> Dict[str, Any]:
         issues = []
         blockers = []
         task_type = dna.get("task_type")
@@ -567,6 +610,11 @@ class MetaTuneAgent:
         if task_type == "classification" and self.metric_threshold > 1.0:
             issues.append("metric_threshold_out_of_range_for_classification")
 
+        leakage_signals = leakage_signals or []
+        if leakage_signals:
+            blockers.append("data_leakage_suspected")
+            issues.extend(leakage_signals)
+
         ok = len(blockers) == 0
         summary = "preflight_ok" if ok else f"blockers={','.join(blockers)}"
         return {
@@ -576,6 +624,7 @@ class MetaTuneAgent:
             "summary": summary,
             "task_type": task_type,
             "missing_ratio": missing_ratio,
+            "leakage_signals": leakage_signals,
         }
 
     def _should_abstain(self, action: ActionType) -> Optional[Dict[str, Any]]:

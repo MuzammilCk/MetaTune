@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import sys
+import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from agent import EpisodicMemory, MetaTuneAgent, ActionType, FailureType
@@ -257,6 +258,44 @@ class TestAgentOrchestration(unittest.TestCase):
             self.assertFalse(result["success"])
             self.assertEqual(result["error_class"], "abstained_low_confidence")
             self.assertGreaterEqual(len(agent.memory.state["abstentions"]), 1)
+
+    def test_preflight_blocks_on_leakage_signals(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            report = agent._run_preflight_checks(
+                {"task_type": "classification", "n_features": 2, "missing_ratio": 0.0},
+                leakage_signals=["feature_equals_target:leaky_col"],
+            )
+            self.assertFalse(report["ok"])
+            self.assertIn("data_leakage_suspected", report["blockers"])
+            self.assertIn("feature_equals_target:leaky_col", report["issues"])
+
+    def test_detect_data_leakage_signals_from_dataframe(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            df = pd.DataFrame({
+                "feature_a": [1, 2, 3, 4, 5, 6],
+                "leaky_target": [0, 1, 0, 1, 0, 1],
+                "target": [0, 1, 0, 1, 0, 1],
+            })
+            signals = agent._detect_data_leakage_signals(df, target_col="target", task_type="classification")
+            self.assertTrue(any("feature_equals_target" in s for s in signals) or any("suspicious_feature_name" in s for s in signals))
 
 
 if __name__ == "__main__":

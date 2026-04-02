@@ -20,8 +20,8 @@
 |---|---|---|---|
 | Phase 1 | Agent runtime hardening | ✅ Done | Added confidence calibration + action-level time/cost accounting |
 | Phase 2 | Tooling architecture | ✅ Done | Registry dispatch + retry policies + guardrails are live |
-| Phase 3 | Memory architecture | 🟡 In progress | Working/Episodic/Semantic stores + retrieval + postmortem tags added |
-| Phase 4 | Explainability & governance | 🟡 In progress | Decision traces + preflight checks + abstention policy added |
+| Phase 3 | Memory architecture | ✅ Done | Working/Episodic/Semantic memory + retrieval + postmortems wired |
+| Phase 4 | Explainability & governance | ✅ Done | Decision traces + full preflight checks + abstention policy added |
 | Phase 5 | Multi-agent evolution | ⬜ Not started | Specialist agents + coordinator pending |
 
 Legend: ✅ done · 🟡 in progress · ⬜ not started
@@ -111,6 +111,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
   - preflight gate outcomes.
 - Added preflight checks prior to expensive execution:
   - unknown task/no-feature blockers,
+  - leakage detection blockers (name, equality, near-perfect correlation),
   - high missing ratio warning,
   - high class-imbalance warning,
   - metric-threshold mismatch warning for classification.
@@ -175,7 +176,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started
 ## Phase 4 — Explainability & governance
 - [x] Machine-readable decision traces
 - [x] Preflight checks:
-  - [ ] leakage
+  - [x] leakage
   - [x] imbalance risk
   - [x] metric/task mismatch
 - [x] Uncertainty/abstention policy
@@ -220,3 +221,33 @@ After each merged PR touching agentic build:
 5. If milestone reached, update **Section 7** and create git tag.
 
 This file is the canonical “where are we now?” source for implementation continuity.
+
+---
+
+## 9) What Is Left To Make MetaTune Fully Agentic AI
+
+To claim **fully agentic AI** (practical `agentic-v1`), the following items are still pending:
+
+1. **Complete Phase 5 multi-agent system**
+   - Implement specialist agents:
+     - Data Forensics Agent,
+     - Search Strategy Agent,
+     - Training Execution Agent,
+     - Audit & Safety Agent.
+   - Build a **Coordinator Agent** with arbitration policy (cost vs quality vs risk).
+
+2. **Close known architectural gaps**
+   - Upgrade planner from lightweight scoring to richer utility/policy optimization.
+   - Make tooling fully registry-driven end-to-end across all execution paths.
+   - Strengthen memory from current JSON state into scalable retrieval-backed store.
+
+3. **Operational hardening before production**
+   - Add CI checks for phase-specific guardrails and policy regressions.
+   - Add benchmark scenarios demonstrating autonomous recovery under failures.
+   - Tag release only after all `Definition of Done` conditions in Section 7 are met.
+
+### Exit Criteria
+Project is “completely agentic AI” when:
+- Phase 5 checklist is fully complete,
+- Known gaps in Section 6 are resolved,
+- Section 7 (`agentic-v1`) criteria are all satisfied in passing CI.
