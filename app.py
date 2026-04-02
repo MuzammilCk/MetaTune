@@ -689,18 +689,38 @@ if uploaded_file:
         """, unsafe_allow_html=True)
         with st.spinner("Sequencing Genome..."):
             analyzer = DatasetAnalyzer(st.session_state['temp_path'], target_col if target_col else None)
-            analyzer.load_data()
-            dna = analyzer.analyze()
+            loaded_ok = analyzer.load_data()
+            dna = analyzer.analyze() if loaded_ok else None
+
+            if not isinstance(dna, dict):
+                st.error("Unable to extract dataset DNA. Falling back to safe default values.")
+                dna = {
+                    "mean_skewness": 0.0,
+                    "target_entropy": 0.0,
+                    "sparsity": 0.0,
+                    "class_imbalance_ratio": 1.0,
+                    "dimensionality": 0.0,
+                    "task_difficulty_score": 0.0,
+                    "task_type": "unknown",
+                }
+
             st.session_state['dna'] = dna  # cache so training reruns can access it
+
+        def _dna_value(key, default=0.0):
+            value = dna.get(key, default)
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return float(default)
         
         # Radar Chart for DNA
         categories = ['Skewness', 'Entropy', 'Sparsity', 'Imbalance', 'Dimensionality']
         values = [
-            min(dna['mean_skewness'], 5)/5, 
-            min(dna['target_entropy'], 2)/2,
-            dna['sparsity'],
-            min(dna['class_imbalance_ratio'], 10)/10,
-            min(dna['dimensionality'], 1)
+            min(_dna_value('mean_skewness'), 5)/5,
+            min(_dna_value('target_entropy'), 2)/2,
+            _dna_value('sparsity'),
+            min(_dna_value('class_imbalance_ratio', 1.0), 10)/10,
+            min(_dna_value('dimensionality'), 1)
         ]
         
         fig_radar = go.Figure(data=go.Scatterpolar(
