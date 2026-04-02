@@ -1,0 +1,14 @@
+{
+    "run_id": "98dd016c-dac1-456c-a7b1-3eab22e2c2da",
+    "data_path": "global_car_dataset.csv",
+    "dataset_fingerprint": "0eed60d45e5c3f563db7beb46aaef605",
+    "dataset_dna": null,
+    "predicted_params": null,
+    "recommended_algorithms": null,
+    "actions_taken": [],
+    "trial_results": null,
+    "final_metric": null,
+    "status": "completed",
+    "failure_reason": null,
+    "timestamp": 1775148299.5681703
+}
