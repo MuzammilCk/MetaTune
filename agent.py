@@ -75,6 +75,12 @@ class TaskNode:
     retries_left: int = 1
     status: TaskStatus = TaskStatus.PENDING
 
+@dataclass
+class ToolSpec:
+    action: ActionType
+    handler_name: str
+    retry_by_error: Dict[str, int]
+
 # ==========================================
 # 2. Episodic Memory Manager
 # ==========================================
@@ -94,10 +100,16 @@ class EpisodicMemory:
             "predicted_params": None,
             "recommended_algorithms": None,
             "actions_taken": [],
+            "action_costs": [],
             "trial_results": None,
             "final_metric": None,
             "status": AgentState.IDLE.value,
             "failure_reason": None,
+            "cost_summary": {
+                "total_actions": 0,
+                "total_runtime_sec": 0.0,
+                "total_cost_units": 0.0,
+            },
             "timestamp": time.time()
         }
 
@@ -153,13 +165,16 @@ class EpisodicMemory:
 # ==========================================
 
 class MetaTuneAgent:
-    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: str = "episodic_memory.json", action_budget: int = 12):
+    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: str = "episodic_memory.json", action_budget: int = 12, max_runtime_sec: int = 900, max_trials: int = 3):
         self.data_path = data_path
         self.target_col = target_col
         self.metric_threshold = metric_threshold
         self.use_bilevel = use_bilevel
         self.approval_mode = approval_mode
         self.action_budget = action_budget
+        self.max_runtime_sec = max_runtime_sec
+        self.max_trials = max_trials
+        self.run_started_at = time.time()
         
         self.memory = EpisodicMemory(memory_file=memory_file)
         if force_new:
@@ -178,6 +193,7 @@ class MetaTuneAgent:
         
         self.meta_learner = MetaLearner()
         self.task_graph = self._init_task_graph()
+        self.tool_registry = self._init_tool_registry()
 
     def _init_task_graph(self) -> Dict[ActionType, TaskNode]:
         return {
@@ -187,6 +203,144 @@ class MetaTuneAgent:
             ActionType.DIAGNOSE_FAILURE: TaskNode(ActionType.DIAGNOSE_FAILURE, [ActionType.RUN_TRIAL], deadline_epoch=11, retries_left=1),
             ActionType.REVISE_STRATEGY: TaskNode(ActionType.REVISE_STRATEGY, [ActionType.DIAGNOSE_FAILURE], deadline_epoch=12, retries_left=1),
         }
+
+    def _init_tool_registry(self) -> Dict[ActionType, ToolSpec]:
+        return {
+            ActionType.INSPECT_DATASET: ToolSpec(
+                action=ActionType.INSPECT_DATASET,
+                handler_name="_tool_inspect_dataset",
+                retry_by_error={FailureType.IO.value: 1, FailureType.DATA.value: 0, FailureType.UNKNOWN.value: 1},
+            ),
+            ActionType.PROPOSE_SEARCH_SPACE: ToolSpec(
+                action=ActionType.PROPOSE_SEARCH_SPACE,
+                handler_name="_tool_propose_search_space",
+                retry_by_error={FailureType.IO.value: 1, FailureType.DATA.value: 1, FailureType.UNKNOWN.value: 1},
+            ),
+            ActionType.RUN_TRIAL: ToolSpec(
+                action=ActionType.RUN_TRIAL,
+                handler_name="_tool_run_trial",
+                retry_by_error={FailureType.TRAINING.value: 1, FailureType.IO.value: 1, FailureType.UNKNOWN.value: 1},
+            ),
+            ActionType.DIAGNOSE_FAILURE: ToolSpec(
+                action=ActionType.DIAGNOSE_FAILURE,
+                handler_name="_tool_diagnose_failure",
+                retry_by_error={FailureType.UNKNOWN.value: 0},
+            ),
+            ActionType.REVISE_STRATEGY: ToolSpec(
+                action=ActionType.REVISE_STRATEGY,
+                handler_name="_tool_revise_strategy",
+                retry_by_error={FailureType.UNKNOWN.value: 0},
+            ),
+        }
+
+    def _guardrails_allow(self, action: ActionType) -> Optional[str]:
+        elapsed = time.time() - self.run_started_at
+        if elapsed > self.max_runtime_sec:
+            return f"Guardrail max_runtime_sec={self.max_runtime_sec} exceeded."
+        if action == ActionType.RUN_TRIAL:
+            run_trial_actions = [a for a in self.memory.state.get("actions_taken", []) if a.get("action") == ActionType.RUN_TRIAL.value]
+            if len(run_trial_actions) >= self.max_trials:
+                return f"Guardrail max_trials={self.max_trials} exceeded."
+        return None
+
+    def _tool_inspect_dataset(self) -> Dict[str, Any]:
+        analyzer = DatasetAnalyzer(self.data_path, target_col=self.target_col)
+        if not analyzer.load_data():
+            raise ValueError("Failed to load dataset for analysis.")
+        dna = analyzer.analyze()
+        self.memory.state["dataset_dna"] = dna
+        details = {
+            "message": "Dataset analysis completed",
+            "dna_feature_count": len(dna),
+        }
+        self.memory.log_action(ActionType.INSPECT_DATASET, "success", details)
+        return details
+
+    def _tool_propose_search_space(self) -> Dict[str, Any]:
+        dna = self.memory.state.get("dataset_dna")
+        params = self.meta_learner.predict(dna)
+        algos = algorithm_recommender.recommend_algorithms(dna)
+        self.memory.state["predicted_params"] = params
+        self.memory.state["recommended_algorithms"] = algos
+
+        if self.meta_learner.knowledge_base_ready:
+            if self.request_approval("MetaBrain is ready to learn from accumulated experience (weights update). Train MetaBrain prior to predicting?", auto_approve=False, default_response=False):
+                self.meta_learner.train()
+
+        details = {
+            "message": "Search space proposed",
+            "predicted_params": params,
+            "recommended_algorithms": algos,
+        }
+        self.memory.log_action(ActionType.PROPOSE_SEARCH_SPACE, "success", details)
+        return details
+
+    def _tool_run_trial(self) -> Dict[str, Any]:
+        params = self.memory.state.get("predicted_params")
+        dna = self.memory.state.get("dataset_dna")
+
+        if self.use_bilevel:
+            if self.request_approval(f"Proceed with Expensive Bilevel Optimization (N=trials, Evolutionary tuning)?", auto_approve=False, default_response=False):
+                import pandas as pd
+                from sklearn.model_selection import train_test_split
+
+                df = pd.read_csv(self.data_path)
+                target_col = self.target_col if self.target_col else df.columns[-1]
+                X = df.drop(columns=[target_col])
+                y = df[target_col]
+                X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+                optimizer = BilevelOptimizer(meta_learner=self.meta_learner, config=BilevelConfig())
+                params = optimizer.optimize(dna, X_train, y_train, X_val, y_val, dna.get("task_type", "classification"), self.data_path)
+                self.memory.state["predicted_params"] = params
+            else:
+                print("   Skipping Bilevel Optimization. Falling back to direct training.")
+
+        trainer = DynamicTrainer(self.data_path, dna, params, target_col=self.target_col)
+        results = trainer.run(epochs=20)
+
+        self.memory.state["trial_results"] = results
+        self.memory.state["final_metric"] = results.get("final_metric", 0.0)
+
+        previous_metric = self.memory.state.get("previous_metric")
+        current_metric = float(results.get("final_metric", 0.0))
+        rollback_recommended = previous_metric is not None and (current_metric + 1e-9) < float(previous_metric)
+        self.memory.state["previous_metric"] = current_metric
+
+        details = {
+            "message": "Training trial completed",
+            "final_metric": current_metric,
+            "metric_name": results.get("metric_name"),
+            "rollback_recommended": rollback_recommended,
+        }
+        self.memory.log_action(ActionType.RUN_TRIAL, "success", details)
+
+        if self.request_approval("Store trial experience logically back to Knowledge Base?", auto_approve=True, default_response=True):
+             self.meta_learner.store_experience(dna, params, self.memory.state["final_metric"])
+        return details
+
+    def _tool_diagnose_failure(self) -> Dict[str, Any]:
+        failure = f"Metric ({self.memory.state.get('final_metric', 0.0)}) fell below threshold ({self.metric_threshold})."
+        self.memory.state["failure_reason"] = failure
+        print(f"   Diagnosis: {failure}")
+        details = {"message": "Failure diagnosed", "reason": failure}
+        self.memory.log_action(ActionType.DIAGNOSE_FAILURE, "success", details, failure_type=FailureType.TRAINING)
+        return details
+
+    def _tool_revise_strategy(self) -> Dict[str, Any]:
+        print(f"   [Revise] Suggesting fallback logic — e.g. reducing LR or expanding search space.")
+        params = self.memory.state.get("predicted_params", {})
+        if 'learning_rate' in params:
+            params['learning_rate'] /= 2.0
+        self.memory.state["predicted_params"] = params
+        details = {
+            "message": "Strategy revised",
+            "revision": "Halved learning rate for next trial",
+            "updated_params": params,
+        }
+        self.memory.log_action(ActionType.REVISE_STRATEGY, "success", details)
+        self.memory.state["status"] = AgentState.COMPLETED.value
+        return details
 
     def request_approval(self, prompt: str, auto_approve: bool = False, default_response: bool = False) -> bool:
         if self.approval_mode == "full-auto":
@@ -219,6 +373,40 @@ class MetaTuneAgent:
         if any(k in msg for k in ["train", "optimizer", "metric", "epoch"]):
             return FailureType.TRAINING
         return FailureType.UNKNOWN
+
+    def _estimate_confidence(self, action: ActionType, success: bool, duration_sec: float, error_class: Optional[str] = None) -> float:
+        """Calibrate confidence using data quality, runtime efficiency, and failure history."""
+        dna = self.memory.state.get("dataset_dna") or {}
+        missing_ratio = float(dna.get("missing_ratio", 0.0) or 0.0)
+        sparsity = float(dna.get("sparsity", 0.0) or 0.0)
+        prior_failures = len([a for a in self.memory.state.get("actions_taken", []) if a.get("status") == "failed"])
+
+        base = 0.85 if success else 0.2
+        quality_penalty = min(0.25, (missing_ratio * 0.2) + (sparsity * 0.15))
+        duration_penalty = min(0.2, duration_sec / 120.0)
+        failure_penalty = min(0.2, prior_failures * 0.05)
+        error_penalty = 0.1 if error_class else 0.0
+        calibration = base - quality_penalty - duration_penalty - failure_penalty - error_penalty
+        return float(max(0.05, min(0.99, calibration)))
+
+    def _record_action_cost(self, action: ActionType, duration_sec: float, success: bool, error_class: Optional[str] = None):
+        """Persist action-level time and synthetic cost accounting."""
+        cost_units = round((duration_sec * 0.3) + (0.0 if success else 1.0), 4)
+        entry = {
+            "action": action.value,
+            "duration_sec": round(duration_sec, 4),
+            "cost_units": cost_units,
+            "success": success,
+            "error_class": error_class,
+            "timestamp": time.time(),
+        }
+        self.memory.state["action_costs"].append(entry)
+        self.memory.state["cost_summary"] = {
+            "total_actions": len(self.memory.state["action_costs"]),
+            "total_runtime_sec": round(sum(x["duration_sec"] for x in self.memory.state["action_costs"]), 4),
+            "total_cost_units": round(sum(x["cost_units"] for x in self.memory.state["action_costs"]), 4),
+        }
+        self.memory.save()
 
     def planner(self) -> Optional[Dict[str, Any]]:
         """Policy planner with simple task-graph, uncertainty, and budget awareness."""
@@ -269,127 +457,79 @@ class MetaTuneAgent:
         self.memory.state["status"] = AgentState.EXECUTING.value
         self.memory.save()
         self.task_graph[action].status = TaskStatus.IN_PROGRESS
-        
-        try:
-            if action == ActionType.INSPECT_DATASET:
-                analyzer = DatasetAnalyzer(self.data_path, target_col=self.target_col)
-                if not analyzer.load_data():
-                    raise ValueError("Failed to load dataset for analysis.")
-                dna = analyzer.analyze()
-                self.memory.state["dataset_dna"] = dna
-                self.memory.log_action(action, "success", {
-                    "message": "Dataset analysis completed",
-                    "dna_feature_count": len(dna),
-                })
-                
-            elif action == ActionType.PROPOSE_SEARCH_SPACE:
-                dna = self.memory.state.get("dataset_dna")
-                # Ensure MetaLearner respects KB limit internally or heuristics apply
-                params = self.meta_learner.predict(dna)
-                algos = algorithm_recommender.recommend_algorithms(dna)
-                self.memory.state["predicted_params"] = params
-                self.memory.state["recommended_algorithms"] = algos
-                
-                # Check for MetaBrain memory overwrite approval
-                if self.meta_learner.knowledge_base_ready:
-                    # Optional: train brain slightly with existing memory
-                    if self.request_approval("MetaBrain is ready to learn from accumulated experience (weights update). Train MetaBrain prior to predicting?", auto_approve=False, default_response=False):
-                        self.meta_learner.train()
-                
-                self.memory.log_action(action, "success", {
-                    "message": "Search space proposed",
-                    "predicted_params": params,
-                    "recommended_algorithms": algos,
-                })
-
-            elif action == ActionType.RUN_TRIAL:
-                params = self.memory.state.get("predicted_params")
-                dna = self.memory.state.get("dataset_dna")
-                
-                if self.use_bilevel:
-                    if self.request_approval(f"Proceed with Expensive Bilevel Optimization (N=trials, Evolutionary tuning)?", auto_approve=False, default_response=False):
-                        import pandas as pd
-                        from sklearn.model_selection import train_test_split
-                        
-                        df = pd.read_csv(self.data_path)
-                        target_col = self.target_col if self.target_col else df.columns[-1]
-                        X = df.drop(columns=[target_col])
-                        y = df[target_col]
-                        X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-                        
-                        optimizer = BilevelOptimizer(meta_learner=self.meta_learner, config=BilevelConfig())
-                        params = optimizer.optimize(dna, X_train, y_train, X_val, y_val, dna.get("task_type", "classification"), self.data_path)
-                        self.memory.state["predicted_params"] = params
-                    else:
-                        print("   Skipping Bilevel Optimization. Falling back to direct training.")
-                
-                trainer = DynamicTrainer(self.data_path, dna, params, target_col=self.target_col)
-                results = trainer.run(epochs=20)
-                
-                self.memory.state["trial_results"] = results
-                self.memory.state["final_metric"] = results.get("final_metric", 0.0)
-                self.memory.log_action(action, "success", {
-                    "message": "Training trial completed",
-                    "final_metric": results.get("final_metric", 0.0),
-                    "metric_name": results.get("metric_name"),
-                })
-                
-                # Store experience back into KB after trials
-                if self.request_approval("Store trial experience logically back to Knowledge Base?", auto_approve=True, default_response=True):
-                     self.meta_learner.store_experience(dna, params, self.memory.state["final_metric"])
-
-            elif action == ActionType.DIAGNOSE_FAILURE:
-                failure = f"Metric ({self.memory.state.get('final_metric', 0.0)}) fell below threshold ({self.metric_threshold})."
-                self.memory.state["failure_reason"] = failure
-                print(f"   Diagnosis: {failure}")
-                self.memory.log_action(action, "success", {
-                    "message": "Failure diagnosed",
-                    "reason": failure,
-                }, failure_type=FailureType.TRAINING)
-
-            elif action == ActionType.REVISE_STRATEGY:
-                print(f"   [Revise] Suggesting fallback logic — e.g. reducing LR or expanding search space.")
-                # We perturb existing params as a naive fallback or abort.
-                params = self.memory.state.get("predicted_params", {})
-                if 'learning_rate' in params: params['learning_rate'] /= 2.0
-                self.memory.state["predicted_params"] = params
-                self.memory.log_action(action, "success", {
-                    "message": "Strategy revised",
-                    "revision": "Halved learning rate for next trial",
-                    "updated_params": params,
-                })
-                # For MVP, we'll mark this complete and abort out of loops for safety
-                self.memory.state["status"] = AgentState.COMPLETED.value
-            
-            self.task_graph[action].status = TaskStatus.COMPLETED
-            return {
-                "success": True,
-                "confidence": 0.85,
-                "cost": {"actions_used": len(self.memory.state["actions_taken"])},
-                "artifacts": {"action": action.value},
-                "error_class": None,
-                "rationale": rationale,
-            }
-
-        except Exception as e:
-            failure_type = self._classify_failure(e)
-            self.task_graph[action].status = TaskStatus.FAILED
-            self.task_graph[action].retries_left -= 1
-            self.memory.log_action(action, "failed", {
-                "message": str(e),
-                "exception_type": type(e).__name__,
-            }, failure_type=failure_type)
-            self.memory.state["failure_reason"] = str(e)
-            self.memory.state["status"] = AgentState.FAILED.value
-            self.memory.save()
+        started_at = time.time()
+        guardrail_reason = self._guardrails_allow(action)
+        if guardrail_reason:
+            duration_sec = max(0.0, time.time() - started_at)
+            confidence = self._estimate_confidence(action, success=False, duration_sec=duration_sec, error_class="resource_limit")
+            self._record_action_cost(action, duration_sec=duration_sec, success=False, error_class="resource_limit")
             return {
                 "success": False,
-                "confidence": 0.1,
-                "cost": {"actions_used": len(self.memory.state["actions_taken"])},
+                "confidence": confidence,
+                "cost": {"actions_used": len(self.memory.state["actions_taken"]), "duration_sec": round(duration_sec, 4), "cost_summary": self.memory.state.get("cost_summary", {})},
                 "artifacts": {"action": action.value},
-                "error_class": failure_type.value,
-                "rationale": rationale,
+                "error_class": "resource_limit",
+                "rationale": f"{rationale} | {guardrail_reason}",
             }
+
+        spec = self.tool_registry.get(action)
+        if spec is None:
+            raise ValueError(f"No ToolRegistry entry for action: {action.value}")
+
+        attempts = 0
+        while True:
+            attempts += 1
+            try:
+                details = getattr(self, spec.handler_name)()
+                self.task_graph[action].status = TaskStatus.COMPLETED
+                duration_sec = max(0.0, time.time() - started_at)
+                confidence = self._estimate_confidence(action, success=True, duration_sec=duration_sec)
+                self._record_action_cost(action, duration_sec=duration_sec, success=True)
+                return {
+                    "success": True,
+                    "confidence": confidence,
+                    "cost": {
+                        "actions_used": len(self.memory.state["actions_taken"]),
+                        "duration_sec": round(duration_sec, 4),
+                        "attempts": attempts,
+                        "cost_summary": self.memory.state.get("cost_summary", {}),
+                    },
+                    "artifacts": {"action": action.value, "details": details},
+                    "error_class": None,
+                    "rationale": rationale,
+                }
+            except Exception as e:
+                failure_type = self._classify_failure(e)
+                retry_limit = int(spec.retry_by_error.get(failure_type.value, 0))
+                if attempts <= retry_limit:
+                    continue
+
+                self.task_graph[action].status = TaskStatus.FAILED
+                self.task_graph[action].retries_left -= 1
+                duration_sec = max(0.0, time.time() - started_at)
+                self.memory.log_action(action, "failed", {
+                    "message": str(e),
+                    "exception_type": type(e).__name__,
+                    "attempts": attempts,
+                }, failure_type=failure_type)
+                self.memory.state["failure_reason"] = str(e)
+                self.memory.state["status"] = AgentState.FAILED.value
+                self.memory.save()
+                confidence = self._estimate_confidence(action, success=False, duration_sec=duration_sec, error_class=failure_type.value)
+                self._record_action_cost(action, duration_sec=duration_sec, success=False, error_class=failure_type.value)
+                return {
+                    "success": False,
+                    "confidence": confidence,
+                    "cost": {
+                        "actions_used": len(self.memory.state["actions_taken"]),
+                        "duration_sec": round(duration_sec, 4),
+                        "attempts": attempts,
+                        "cost_summary": self.memory.state.get("cost_summary", {}),
+                    },
+                    "artifacts": {"action": action.value},
+                    "error_class": failure_type.value,
+                    "rationale": rationale,
+                }
 
     def critic(self) -> bool:
         """Evaluates whether the executing state yielded a successful end goal."""
@@ -484,6 +624,8 @@ def main():
     parser.add_argument("--new", action="store_true", help="Force ignore past episodic memory and start fresh")
     parser.add_argument("--approval-mode", choices=["manual", "semi-auto", "full-auto"], default="manual", help="Approval policy: manual prompts, semi-auto defaults, or full-auto allow")
     parser.add_argument("--action-budget", type=int, default=12, help="Maximum number of actions allowed in a run")
+    parser.add_argument("--max-runtime-sec", type=int, default=900, help="Guardrail: max wall-clock runtime in seconds")
+    parser.add_argument("--max-trials", type=int, default=3, help="Guardrail: max RUN_TRIAL actions in one run")
     args = parser.parse_args()
 
     agent = MetaTuneAgent(
@@ -493,7 +635,9 @@ def main():
         use_bilevel=args.bilevel,
         force_new=args.new,
         approval_mode=args.approval_mode,
-        action_budget=args.action_budget
+        action_budget=args.action_budget,
+        max_runtime_sec=args.max_runtime_sec,
+        max_trials=args.max_trials
     )
     agent.run()
 

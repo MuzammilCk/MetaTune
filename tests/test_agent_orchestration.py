@@ -111,6 +111,57 @@ class TestAgentOrchestration(unittest.TestCase):
             self.assertIn("critic_breakdown", agent.memory.state)
             self.assertIn("aggregate", agent.memory.state["critic_breakdown"])
 
+    def test_executor_records_action_costs_and_confidence(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            result = agent.executor(ActionType.INSPECT_DATASET, rationale="unit-test")
+            self.assertTrue(result["success"])
+            self.assertGreaterEqual(result["confidence"], 0.05)
+            self.assertLessEqual(result["confidence"], 0.99)
+            self.assertIn("cost_summary", result["cost"])
+            self.assertGreaterEqual(agent.memory.state["cost_summary"]["total_actions"], 1)
+            self.assertGreaterEqual(len(agent.memory.state["action_costs"]), 1)
+
+    def test_tool_registry_has_core_actions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            self.assertIn(ActionType.INSPECT_DATASET, agent.tool_registry)
+            self.assertIn(ActionType.RUN_TRIAL, agent.tool_registry)
+
+    def test_guardrail_blocks_when_max_trials_reached(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+                max_trials=1,
+            )
+            agent.memory.state["actions_taken"].append({"action": "run_trial", "status": "success"})
+            reason = agent._guardrails_allow(ActionType.RUN_TRIAL)
+            self.assertIsNotNone(reason)
+            self.assertIn("max_trials", reason)
+
 
 if __name__ == "__main__":
     unittest.main()
