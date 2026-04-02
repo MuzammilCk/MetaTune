@@ -46,5 +46,43 @@ class TestDataAnalyzer(unittest.TestCase):
         self.assertIn("DATASET DNA", output)
         self.assertIn("Analysis Complete", output)
 
+    def test_auto_detect_target_not_last_column(self):
+        test_csv = "test_target_middle.csv"
+        df = pd.DataFrame({
+            "feature1": [1, 2, 3, 4],
+            "target_label": [0, 1, 0, 1],
+            "feature2": [10, 11, 12, 13],
+        })
+        df.to_csv(test_csv, index=False)
+        try:
+            analyzer = DatasetAnalyzer(test_csv, target_col=None)
+            self.assertTrue(analyzer.load_data())
+            dna = analyzer.analyze()
+            self.assertIsNotNone(dna)
+            self.assertEqual(analyzer.target_col, "target_label")
+            self.assertIn("target_detection_method", dna)
+        finally:
+            if os.path.exists(test_csv):
+                os.remove(test_csv)
+
+    def test_cleaning_handles_null_values(self):
+        test_csv = "test_null_cleaning.csv"
+        df = pd.DataFrame({
+            "A": [1.0, np.nan, 3.0, np.nan],
+            "B": ["x", None, "y", None],
+            "target": [1, 0, 1, 0],
+        })
+        df.to_csv(test_csv, index=False)
+        try:
+            analyzer = DatasetAnalyzer(test_csv, target_col="target")
+            self.assertTrue(analyzer.load_data())
+            dna = analyzer.analyze()
+            self.assertIsNotNone(dna)
+            self.assertIn("cleaning_report", dna)
+            self.assertEqual(int(analyzer.cleaned_data.isnull().sum().sum()), 0)
+        finally:
+            if os.path.exists(test_csv):
+                os.remove(test_csv)
+
 if __name__ == '__main__':
     unittest.main()
