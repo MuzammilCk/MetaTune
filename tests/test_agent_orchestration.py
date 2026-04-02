@@ -75,6 +75,42 @@ class TestAgentOrchestration(unittest.TestCase):
             self.assertIn("details", event)
             self.assertEqual(event["details"]["message"], "bad column")
 
+    def test_policy_planner_returns_action_and_rationale(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            plan = agent.planner()
+            self.assertIsNotNone(plan)
+            self.assertEqual(plan["action"], ActionType.INSPECT_DATASET)
+            self.assertIn("rationale", plan)
+
+    def test_critic_records_multi_objective_breakdown(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data_path = os.path.join(tmpdir, "tiny.csv")
+            with open(data_path, "w", encoding="utf-8") as f:
+                f.write("x,target\n1,0\n2,1\n")
+
+            agent = MetaTuneAgent(
+                data_path=data_path,
+                approval_mode="full-auto",
+                force_new=True,
+                memory_file=os.path.join(tmpdir, "episodic_memory.json"),
+            )
+            agent.memory.state["final_metric"] = 0.9
+            agent.memory.state["trial_results"] = {"training_time": 2.0}
+            ok = agent.critic()
+            self.assertTrue(ok)
+            self.assertIn("critic_breakdown", agent.memory.state)
+            self.assertIn("aggregate", agent.memory.state["critic_breakdown"])
+
 
 if __name__ == "__main__":
     unittest.main()

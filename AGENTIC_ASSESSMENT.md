@@ -162,3 +162,15 @@ Interpretation:
 - **Can it become agentic AI?**
   - **Yes, absolutely.**
   - Your architecture is close enough that a focused runtime/memory/tooling redesign can convert it into a true agentic platform.
+
+## Update: Data-readiness doubts resolved before phase build
+1. **If CSV has many null values, can agent clean it?**  
+   **Now yes**: analyzer-level cleaning drops null targets safely, imputes numeric features with median and categorical features with mode/`unknown`, and records a cleaning report.
+2. **If CSV target is missing/not at end, can agent detect it?**  
+   **Now improved**: target detection uses user input first, then name heuristics (`target`, `label`, `class`, `price`, etc.), then fallback to last column.
+
+With those two blockers addressed, implementation has started on **Phase 1**:
+- TaskGraph (dependencies, retries, deadlines) added.
+- Planner upgraded to a policy-based selector with budget + uncertainty rationale.
+- Executor now returns structured result payloads.
+- Critic upgraded to multi-objective scoring (quality, time, stability, budget, drift-risk).

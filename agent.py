@@ -7,6 +7,7 @@ import hashlib
 from typing import Dict, Any, List, Optional
 from enum import Enum
 import sys
+from dataclasses import dataclass
 
 # Local imports
 try:
@@ -53,12 +54,26 @@ class AgentState(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 class FailureType(str, Enum):
     DATA = "data_error"
     TRAINING = "training_error"
     APPROVAL = "approval_error"
     IO = "io_error"
     UNKNOWN = "unknown_error"
+
+@dataclass
+class TaskNode:
+    action: ActionType
+    depends_on: List[ActionType]
+    deadline_epoch: int
+    retries_left: int = 1
+    status: TaskStatus = TaskStatus.PENDING
 
 # ==========================================
 # 2. Episodic Memory Manager
@@ -138,12 +153,13 @@ class EpisodicMemory:
 # ==========================================
 
 class MetaTuneAgent:
-    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: str = "episodic_memory.json"):
+    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: str = "episodic_memory.json", action_budget: int = 12):
         self.data_path = data_path
         self.target_col = target_col
         self.metric_threshold = metric_threshold
         self.use_bilevel = use_bilevel
         self.approval_mode = approval_mode
+        self.action_budget = action_budget
         
         self.memory = EpisodicMemory(memory_file=memory_file)
         if force_new:
@@ -157,9 +173,20 @@ class MetaTuneAgent:
 
         self.memory.state["data_path"] = data_path
         self.memory.state["dataset_fingerprint"] = fingerprint
+        self.memory.state.setdefault("policy_trace", [])
         self.memory.save()
         
         self.meta_learner = MetaLearner()
+        self.task_graph = self._init_task_graph()
+
+    def _init_task_graph(self) -> Dict[ActionType, TaskNode]:
+        return {
+            ActionType.INSPECT_DATASET: TaskNode(ActionType.INSPECT_DATASET, [], deadline_epoch=2, retries_left=2),
+            ActionType.PROPOSE_SEARCH_SPACE: TaskNode(ActionType.PROPOSE_SEARCH_SPACE, [ActionType.INSPECT_DATASET], deadline_epoch=5, retries_left=2),
+            ActionType.RUN_TRIAL: TaskNode(ActionType.RUN_TRIAL, [ActionType.PROPOSE_SEARCH_SPACE], deadline_epoch=10, retries_left=2),
+            ActionType.DIAGNOSE_FAILURE: TaskNode(ActionType.DIAGNOSE_FAILURE, [ActionType.RUN_TRIAL], deadline_epoch=11, retries_left=1),
+            ActionType.REVISE_STRATEGY: TaskNode(ActionType.REVISE_STRATEGY, [ActionType.DIAGNOSE_FAILURE], deadline_epoch=12, retries_left=1),
+        }
 
     def request_approval(self, prompt: str, auto_approve: bool = False, default_response: bool = False) -> bool:
         if self.approval_mode == "full-auto":
@@ -193,28 +220,55 @@ class MetaTuneAgent:
             return FailureType.TRAINING
         return FailureType.UNKNOWN
 
-    def planner(self) -> ActionType:
-        """Rule-based goal decomposition."""
-        actions = [a["action"] for a in self.memory.state["actions_taken"] if a["status"] == "success"]
-        
-        if ActionType.INSPECT_DATASET.value not in actions:
-            return ActionType.INSPECT_DATASET
-        elif ActionType.PROPOSE_SEARCH_SPACE.value not in actions:
-            return ActionType.PROPOSE_SEARCH_SPACE
-        elif ActionType.RUN_TRIAL.value not in actions:
-            return ActionType.RUN_TRIAL
-        elif self.memory.state.get("status") == AgentState.FAILED.value:
-            if ActionType.DIAGNOSE_FAILURE.value not in [a["action"] for a in self.memory.state["actions_taken"]]:
-                return ActionType.DIAGNOSE_FAILURE
-            return ActionType.REVISE_STRATEGY
-        else:
-            return None # Finished main execution flow
+    def planner(self) -> Optional[Dict[str, Any]]:
+        """Policy planner with simple task-graph, uncertainty, and budget awareness."""
+        completed = {ActionType(a["action"]) for a in self.memory.state["actions_taken"] if a["status"] == "success"}
+        actions_used = len(self.memory.state["actions_taken"])
+        remaining_budget = max(0, self.action_budget - actions_used)
+        uncertainty = 1.0 if self.memory.state.get("dataset_dna") is None else 0.3
 
-    def executor(self, action: ActionType) -> bool:
+        if remaining_budget <= 0:
+            return None
+
+        if self.memory.state.get("status") == AgentState.FAILED.value:
+            for failed_action in [ActionType.DIAGNOSE_FAILURE, ActionType.REVISE_STRATEGY]:
+                node = self.task_graph[failed_action]
+                deps_ready = all(dep in completed for dep in node.depends_on)
+                if deps_ready and node.retries_left >= 0 and node.status != TaskStatus.COMPLETED:
+                    rationale = f"Recovery path selected: {failed_action.value} (remaining_budget={remaining_budget})."
+                    self.memory.state["policy_trace"].append({"action": failed_action.value, "rationale": rationale, "timestamp": time.time()})
+                    self.memory.save()
+                    return {"action": failed_action, "rationale": rationale, "remaining_budget": remaining_budget, "uncertainty": uncertainty}
+            return None
+
+        candidates = []
+        for action, node in self.task_graph.items():
+            if action in [ActionType.DIAGNOSE_FAILURE, ActionType.REVISE_STRATEGY]:
+                continue
+            if node.status == TaskStatus.COMPLETED:
+                continue
+            deps_ready = all(dep in completed for dep in node.depends_on)
+            if not deps_ready:
+                continue
+            urgency = max(0, node.deadline_epoch - actions_used)
+            score = (2.0 if action not in completed else 0.5) + (1.0 / (urgency + 1)) + uncertainty
+            candidates.append((score, action))
+
+        if not candidates:
+            return None
+
+        _, selected = max(candidates, key=lambda x: x[0])
+        rationale = f"Selected {selected.value}: deps_satisfied, uncertainty={uncertainty:.2f}, remaining_budget={remaining_budget}."
+        self.memory.state["policy_trace"].append({"action": selected.value, "rationale": rationale, "timestamp": time.time()})
+        self.memory.save()
+        return {"action": selected, "rationale": rationale, "remaining_budget": remaining_budget, "uncertainty": uncertainty}
+
+    def executor(self, action: ActionType, rationale: str = "") -> Dict[str, Any]:
         """Executes the mapped schema routines."""
         print(f"\n🤖 [Executor] Executing action: {action.value}")
         self.memory.state["status"] = AgentState.EXECUTING.value
         self.memory.save()
+        self.task_graph[action].status = TaskStatus.IN_PROGRESS
         
         try:
             if action == ActionType.INSPECT_DATASET:
@@ -307,10 +361,20 @@ class MetaTuneAgent:
                 # For MVP, we'll mark this complete and abort out of loops for safety
                 self.memory.state["status"] = AgentState.COMPLETED.value
             
-            return True
+            self.task_graph[action].status = TaskStatus.COMPLETED
+            return {
+                "success": True,
+                "confidence": 0.85,
+                "cost": {"actions_used": len(self.memory.state["actions_taken"])},
+                "artifacts": {"action": action.value},
+                "error_class": None,
+                "rationale": rationale,
+            }
 
         except Exception as e:
             failure_type = self._classify_failure(e)
+            self.task_graph[action].status = TaskStatus.FAILED
+            self.task_graph[action].retries_left -= 1
             self.memory.log_action(action, "failed", {
                 "message": str(e),
                 "exception_type": type(e).__name__,
@@ -318,7 +382,14 @@ class MetaTuneAgent:
             self.memory.state["failure_reason"] = str(e)
             self.memory.state["status"] = AgentState.FAILED.value
             self.memory.save()
-            return False
+            return {
+                "success": False,
+                "confidence": 0.1,
+                "cost": {"actions_used": len(self.memory.state["actions_taken"])},
+                "artifacts": {"action": action.value},
+                "error_class": failure_type.value,
+                "rationale": rationale,
+            }
 
     def critic(self) -> bool:
         """Evaluates whether the executing state yielded a successful end goal."""
@@ -328,7 +399,27 @@ class MetaTuneAgent:
         self.memory.state["status"] = AgentState.CRITIQUING.value
         self.memory.save()
 
-        if metric >= self.metric_threshold:
+        trial_results = self.memory.state.get("trial_results") or {}
+        training_time = float(trial_results.get("training_time", 0.0) or 0.0)
+        failures = len([a for a in self.memory.state["actions_taken"] if a["status"] == "failed"])
+        budget_left = max(0, self.action_budget - len(self.memory.state["actions_taken"]))
+
+        quality_score = float(metric >= self.metric_threshold)
+        time_score = max(0.0, 1.0 - min(training_time / 120.0, 1.0))
+        stability_score = 0.0 if failures > 0 else 1.0
+        budget_score = min(1.0, budget_left / max(1.0, self.action_budget))
+        drift_risk_score = 1.0 if self.memory.state.get("dataset_fingerprint") else 0.5
+        aggregate = (0.45 * quality_score) + (0.2 * time_score) + (0.2 * stability_score) + (0.1 * budget_score) + (0.05 * drift_risk_score)
+        self.memory.state["critic_breakdown"] = {
+            "quality": quality_score,
+            "time": time_score,
+            "stability": stability_score,
+            "budget": budget_score,
+            "drift_risk": drift_risk_score,
+            "aggregate": aggregate,
+        }
+
+        if metric >= self.metric_threshold and aggregate >= 0.55:
             print(f"✅ [Critic] Model performance acceptable: {metric:.4f} >= threshold {self.metric_threshold}")
             self.memory.state["status"] = AgentState.COMPLETED.value
             self.memory.save()
@@ -347,26 +438,28 @@ class MetaTuneAgent:
         while self.memory.state["status"] not in [AgentState.COMPLETED.value]:
             
             # If standard loop failed, handle diagnostics
+            plan = self.planner()
             if self.memory.state["status"] == AgentState.FAILED.value:
-                action = self.planner()
-                if action:
-                    self.executor(action)
+                if plan:
+                    exec_result = self.executor(plan["action"], rationale=plan["rationale"])
+                    if not exec_result.get("success"):
+                        print(f"⚠️ [Agent] Recovery action failed: {exec_result.get('error_class')}")
                 else: 
                     break # Out of options
                 continue
             
             self.memory.state["status"] = AgentState.PLANNING.value
-            action = self.planner()
+            plan = self.planner()
             
-            if not action:
+            if not plan:
                 # All primary execution steps finished, run critic
                 success = self.critic()
                 if success:
                     break
             else:
-                success = self.executor(action)
-                if not success:
-                    print(f"⚠️ [Agent] Action {action.value} failed. Halting workflow.")
+                exec_result = self.executor(plan["action"], rationale=plan["rationale"])
+                if not exec_result.get("success"):
+                    print(f"⚠️ [Agent] Action {plan['action'].value} failed. Halting workflow.")
                     break
         
         print("\n🎉 [Agent] Flow complete. Generating final artifacts...")
@@ -390,6 +483,7 @@ def main():
     parser.add_argument("--bilevel", action="store_true", help="Launch bilevel optimizer search space")
     parser.add_argument("--new", action="store_true", help="Force ignore past episodic memory and start fresh")
     parser.add_argument("--approval-mode", choices=["manual", "semi-auto", "full-auto"], default="manual", help="Approval policy: manual prompts, semi-auto defaults, or full-auto allow")
+    parser.add_argument("--action-budget", type=int, default=12, help="Maximum number of actions allowed in a run")
     args = parser.parse_args()
 
     agent = MetaTuneAgent(
@@ -398,7 +492,8 @@ def main():
         metric_threshold=args.threshold,
         use_bilevel=args.bilevel,
         force_new=args.new,
-        approval_mode=args.approval_mode
+        approval_mode=args.approval_mode,
+        action_budget=args.action_budget
     )
     agent.run()
 
