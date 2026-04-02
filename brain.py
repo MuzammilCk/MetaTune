@@ -76,6 +76,56 @@ class MetaLearner:
         self.knowledge_base_path = "knowledge_base.csv"
         print(f"🧠 Meta-Learner Brain initialized on {self.device}")
 
+    def _memory_guided_prediction(self, dataset_dna):
+        """Return weighted averages from nearest historical runs when available."""
+        if not os.path.exists(self.knowledge_base_path):
+            return None
+        try:
+            df = pd.read_csv(self.knowledge_base_path)
+        except Exception:
+            return None
+        if df.empty:
+            return None
+
+        for f in self.input_features:
+            if f not in df.columns:
+                df[f] = 0.0
+        for p in self.output_params:
+            if p not in df.columns:
+                return None
+
+        target_vec = np.array([dataset_dna.get(f, 0.0) for f in self.input_features], dtype=float)
+        kb_matrix = df[self.input_features].astype(float).fillna(0.0).values
+        distances = np.linalg.norm(kb_matrix - target_vec.reshape(1, -1), axis=1)
+
+        metric = df['final_metric'].astype(float).fillna(0.0).values if 'final_metric' in df.columns else np.ones(len(df))
+        metric_weights = np.clip(metric, 0.0, None) + 1e-6
+        dist_weights = 1.0 / (distances + 1e-6)
+        weights = metric_weights * dist_weights
+
+        top_k = min(10, len(df))
+        top_idx = np.argsort(distances)[:top_k]
+        top_w = weights[top_idx]
+        if np.sum(top_w) <= 0:
+            return None
+        top_w = top_w / np.sum(top_w)
+
+        pred = {}
+        for param in ['learning_rate', 'weight_decay_l2', 'batch_size', 'dropout']:
+            values = df.iloc[top_idx][param].astype(float).fillna(0.0).values
+            pred[param] = float(np.dot(top_w, values))
+
+        if 'optimizer_type' in df.columns:
+            optim_vals = df.iloc[top_idx]['optimizer_type'].fillna('adam').astype(str).values
+            adam_weight = float(np.sum(top_w * (optim_vals == 'adam')))
+            pred['optimizer_type'] = 'adam' if adam_weight >= 0.5 else 'sgd'
+        elif 'optimizer_type_code' in df.columns:
+            optim_vals = df.iloc[top_idx]['optimizer_type_code'].astype(float).fillna(1.0).values
+            pred['optimizer_type'] = 'adam' if float(np.dot(top_w, optim_vals)) >= 0.5 else 'sgd'
+        else:
+            pred['optimizer_type'] = 'adam'
+        return pred
+
     def _bootstrap_heuristics(self, dna):
         """Step A: Cold Start Heuristics (The Old 'Brain') used when no data exists."""
         print("🧊 Cold Start: Using Heuristics to bootstrap...")
@@ -199,6 +249,8 @@ class MetaLearner:
 
     def predict(self, dataset_dna):
         """Step D: Prediction with Evolutionary Exploration (Mutation)."""
+        memory_pred = self._memory_guided_prediction(dataset_dna)
+
         if not self.is_trained:
             if os.path.exists("meta_brain_weights.pth"):
                 try:
@@ -210,9 +262,15 @@ class MetaLearner:
                     print("✅ Meta-brain weights loaded from disk.")
                 except Exception as e:
                     print(f"⚠️  Could not load weights: {e}. Using heuristics.")
-                    return self._bootstrap_heuristics(dataset_dna)
+                    base_pred = self._bootstrap_heuristics(dataset_dna)
+                    if memory_pred:
+                        return self._clamp_to_search_space(memory_pred, dataset_dna.get("vizier_search_space_hint", "{}"))
+                    return base_pred
             else:
-                return self._bootstrap_heuristics(dataset_dna)
+                base_pred = self._bootstrap_heuristics(dataset_dna)
+                if memory_pred:
+                    return self._clamp_to_search_space(memory_pred, dataset_dna.get("vizier_search_space_hint", "{}"))
+                return base_pred
 
         feats = [dataset_dna.get(f, 0) for f in self.input_features]
         X = self.scaler.transform(np.array(feats).reshape(1, -1))
@@ -222,20 +280,25 @@ class MetaLearner:
         with torch.no_grad():
             raw_preds = self.model(X_tensor).cpu().numpy()[0]
             
-        # === EVOLUTIONARY MUTATION (EXPLORATION) ===
-        # Continuous params only: Vizier-style perturbation
-        noise = np.random.normal(0, 0.1, size=2) # Only lr and weight decay gets noise here as dropout is categorical like
-        raw_preds[0:2] += noise # Apply to LR and WD
-        raw_preds[3] += np.random.normal(0, 0.1) # Apply to Dropout separately
-            
-        predictions = {
+        model_predictions = {
             'learning_rate': float(np.abs(raw_preds[0])), 
             'weight_decay_l2': float(np.abs(raw_preds[1])),
             'batch_size': int(np.clip(raw_preds[2], 16, 256)), 
             'dropout': float(np.clip(np.abs(raw_preds[3]), 0, 0.5)),
             'optimizer_type': 'adam' if raw_preds[4] > 0.5 else 'sgd'
         }
-        
+
+        if memory_pred:
+            predictions = {
+                'learning_rate': 0.7 * memory_pred['learning_rate'] + 0.3 * model_predictions['learning_rate'],
+                'weight_decay_l2': 0.7 * memory_pred['weight_decay_l2'] + 0.3 * model_predictions['weight_decay_l2'],
+                'batch_size': int(np.clip(round(0.7 * memory_pred['batch_size'] + 0.3 * model_predictions['batch_size']), 16, 256)),
+                'dropout': float(np.clip(0.7 * memory_pred['dropout'] + 0.3 * model_predictions['dropout'], 0, 0.5)),
+                'optimizer_type': memory_pred['optimizer_type'],
+            }
+        else:
+            predictions = model_predictions
+
         hint_str = dataset_dna.get("vizier_search_space_hint", "{}")
         return self._clamp_to_search_space(predictions, hint_str)
         
@@ -268,5 +331,4 @@ class MetaLearner:
         brain.scaler = checkpoint['scaler']
         brain.is_trained = True
         return brain
-
 
