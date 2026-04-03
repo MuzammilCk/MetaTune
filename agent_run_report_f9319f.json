@@ -1,5 +1,5 @@
 {
-    "run_id": "33a93b27-ad13-47a2-b43d-ceabf7d14028",
+    "run_id": "f9319f4a-1de6-4682-a909-31e980a66b66",
     "data_path": "wisconsin.csv",
     "dataset_fingerprint": "fd87dd8cb33a3b3163f83494289e7fda",
     "dataset_dna": {
@@ -53,10 +53,10 @@
         }
     },
     "predicted_params": {
-        "learning_rate": 0.0025834392742383,
+        "learning_rate": 0.0025834392742383537,
         "weight_decay_l2": 1e-05,
-        "batch_size": 32.0,
-        "dropout": 0.114213532513181,
+        "batch_size": 32,
+        "dropout": 0.11421353251318103,
         "optimizer_type": "adam"
     },
     "recommended_algorithms": {
@@ -117,19 +117,19 @@
                 "semantic_hits": 0
             },
             "failure_type": null,
-            "timestamp": 1775182475.1321335
+            "timestamp": 1775182195.6151972
         },
         {
             "action": "propose_search_space",
             "status": "success",
-            "result": "{\"message\": \"Search space proposed\", \"predicted_params\": {\"learning_rate\": 0.0025834392742383, \"weight_decay_l2\": 1e-05, \"batch_size\": 32.0, \"dropout\": 0.114213532513181, \"optimizer_type\": \"adam\"}, \"recommended_algorithms\": {\"recommendations\": [{\"id\": \"rf\", \"label\": \"Random Forest\", \"reason\": \"Strong default for tabular classification; robust to scaling and mixed feature interactions.\", \"search_space\": {\"n_estimators\": [50, 500], \"max_depth\": [3, 20], \"min_samples_split\": [2, 20]}, \"deployable\": true, \"task_type\": \"classification\"}, {\"id\": \"pytorch_mlp\", \"label\": \"Neural Network (PyTorch)\", \"reason\": \"Use when you want adaptive training dynamics and you expect complex feature interactions.\", \"search_space\": {\"lr\": [0.0001, 0.1], \"dropout\": [0.0, 0.5], \"weight_decay_l2\": [1e-05, 0.1]}, \"deployable\": true, \"task_type\": \"classification\"}], \"n_trials_budget\": 20}}",
+            "result": "{\"message\": \"Search space proposed\", \"predicted_params\": {\"learning_rate\": 0.0025834392742383537, \"weight_decay_l2\": 1e-05, \"batch_size\": 32, \"dropout\": 0.11421353251318103, \"optimizer_type\": \"adam\"}, \"recommended_algorithms\": {\"recommendations\": [{\"id\": \"rf\", \"label\": \"Random Forest\", \"reason\": \"Strong default for tabular classification; robust to scaling and mixed feature interactions.\", \"search_space\": {\"n_estimators\": [50, 500], \"max_depth\": [3, 20], \"min_samples_split\": [2, 20]}, \"deployable\": true, \"task_type\": \"classification\"}, {\"id\": \"pytorch_mlp\", \"label\": \"Neural Network (PyTorch)\", \"reason\": \"Use when you want adaptive training dynamics and you expect complex feature interactions.\", \"search_space\": {\"lr\": [0.0001, 0.1], \"dropout\": [0.0, 0.5], \"weight_decay_l2\": [1e-05, 0.1]}, \"deployable\": true, \"task_type\": \"classification\"}], \"n_trials_budget\": 20}}",
             "details": {
                 "message": "Search space proposed",
                 "predicted_params": {
-                    "learning_rate": 0.0025834392742383,
+                    "learning_rate": 0.0025834392742383537,
                     "weight_decay_l2": 1e-05,
-                    "batch_size": 32.0,
-                    "dropout": 0.114213532513181,
+                    "batch_size": 32,
+                    "dropout": 0.11421353251318103,
                     "optimizer_type": "adam"
                 },
                 "recommended_algorithms": {
@@ -181,46 +181,46 @@
                 }
             },
             "failure_type": null,
-            "timestamp": 1775182475.1902697
+            "timestamp": 1775182195.6550195
         },
         {
             "action": "run_trial",
             "status": "success",
-            "result": "{\"message\": \"Training trial completed\", \"final_metric\": 0.9824561403508771, \"metric_name\": \"Accuracy\", \"rollback_recommended\": false}",
+            "result": "{\"message\": \"Training trial completed\", \"final_metric\": 0.9385964912280702, \"metric_name\": \"Accuracy\", \"rollback_recommended\": false}",
             "details": {
                 "message": "Training trial completed",
-                "final_metric": 0.9824561403508771,
+                "final_metric": 0.9385964912280702,
                 "metric_name": "Accuracy",
                 "rollback_recommended": false
             },
             "failure_type": null,
-            "timestamp": 1775182477.3826108
+            "timestamp": 1775182198.2111816
         }
     ],
     "action_costs": [
         {
             "action": "inspect_dataset",
-            "duration_sec": 0.1076,
-            "cost_units": 0.0323,
+            "duration_sec": 0.0888,
+            "cost_units": 0.0266,
             "success": true,
             "error_class": null,
-            "timestamp": 1775182475.1718204
+            "timestamp": 1775182195.649815
         },
         {
             "action": "propose_search_space",
-            "duration_sec": 0.0173,
-            "cost_units": 0.0052,
+            "duration_sec": 0.0054,
+            "cost_units": 0.0016,
             "success": true,
             "error_class": null,
-            "timestamp": 1775182475.1960225
+            "timestamp": 1775182195.6600406
         },
         {
             "action": "run_trial",
-            "duration_sec": 2.1902,
-            "cost_units": 0.6571,
+            "duration_sec": 2.5523,
+            "cost_units": 0.7657,
             "success": true,
             "error_class": null,
-            "timestamp": 1775182477.3986359
+            "timestamp": 1775182198.221925
         }
     ],
     "working_memory": {
@@ -232,13 +232,13 @@
             "sparsity": 0.035533831282952545
         },
         "latest_params": {
-            "learning_rate": 0.0025834392742383,
+            "learning_rate": 0.0025834392742383537,
             "weight_decay_l2": 1e-05,
-            "batch_size": 32.0,
-            "dropout": 0.114213532513181,
+            "batch_size": 32,
+            "dropout": 0.11421353251318103,
             "optimizer_type": "adam"
         },
-        "latest_metric": 0.9824561403508771
+        "latest_metric": 0.9385964912280702
     },
     "episodic_memory": [
         {
@@ -248,24 +248,24 @@
                 "dna_feature_count": 29,
                 "semantic_hits": 0
             },
-            "timestamp": 1775182475.1328053
+            "timestamp": 1775182195.6157017
         },
         {
             "type": "propose_search_space",
             "payload": {
                 "n_algorithms": 2
             },
-            "timestamp": 1775182475.1941774
+            "timestamp": 1775182195.658327
         },
         {
             "type": "run_trial",
             "payload": {
                 "message": "Training trial completed",
-                "final_metric": 0.9824561403508771,
+                "final_metric": 0.9385964912280702,
                 "metric_name": "Accuracy",
                 "rollback_recommended": false
             },
-            "timestamp": 1775182477.3844562
+            "timestamp": 1775182198.212678
         }
     ],
     "semantic_memory": {
@@ -273,16 +273,16 @@
             "key": "classification|f3|s0.0|n0",
             "task_type": "classification",
             "run_count": 1,
-            "avg_metric": 0.9824561403508771,
-            "last_metric": 0.9824561403508771,
+            "avg_metric": 0.9385964912280702,
+            "last_metric": 0.9385964912280702,
             "last_params": {
-                "learning_rate": 0.0025834392742383,
+                "learning_rate": 0.0025834392742383537,
                 "weight_decay_l2": 1e-05,
-                "batch_size": 32.0,
-                "dropout": 0.114213532513181,
+                "batch_size": 32,
+                "dropout": 0.11421353251318103,
                 "optimizer_type": "adam"
             },
-            "last_updated": 1775182477.386557
+            "last_updated": 1775182198.2145011
         }
     },
     "postmortems": [],
@@ -293,7 +293,7 @@
             "decision": "selected",
             "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
             "confidence": 0.6,
-            "timestamp": 1775182475.0608544
+            "timestamp": 1775182195.558266
         },
         {
             "stage": "planner",
@@ -301,7 +301,7 @@
             "decision": "selected",
             "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
             "confidence": 0.6,
-            "timestamp": 1775182475.0620506
+            "timestamp": 1775182195.5592408
         },
         {
             "stage": "preflight",
@@ -309,7 +309,7 @@
             "decision": "pass",
             "rationale": "preflight_ok",
             "confidence": 1.0,
-            "timestamp": 1775182475.1702263
+            "timestamp": 1775182195.6490538
         },
         {
             "stage": "planner",
@@ -317,7 +317,7 @@
             "decision": "selected",
             "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
             "confidence": 0.88,
-            "timestamp": 1775182475.1729116
+            "timestamp": 1775182195.650537
         },
         {
             "stage": "planner",
@@ -325,7 +325,7 @@
             "decision": "selected",
             "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
             "confidence": 0.88,
-            "timestamp": 1775182475.1749556
+            "timestamp": 1775182195.6519132
         },
         {
             "stage": "planner",
@@ -333,7 +333,7 @@
             "decision": "selected",
             "rationale": "Selected run_trial: deps_satisfied, uncertainty=0.30, remaining_budget=10.",
             "confidence": 0.88,
-            "timestamp": 1775182475.1980186
+            "timestamp": 1775182195.6618762
         },
         {
             "stage": "planner",
@@ -341,7 +341,7 @@
             "decision": "selected",
             "rationale": "Selected run_trial: deps_satisfied, uncertainty=0.30, remaining_budget=10.",
             "confidence": 0.88,
-            "timestamp": 1775182475.202094
+            "timestamp": 1775182195.6648488
         }
     ],
     "preflight_checks": [
@@ -353,110 +353,110 @@
             "task_type": "classification",
             "missing_ratio": 0.030303030303030304,
             "leakage_signals": [],
-            "timestamp": 1775182475.1693835
+            "timestamp": 1775182195.648232
         }
     ],
     "abstentions": [],
     "trial_results": {
         "status": "Optimization Complete",
-        "final_metric": 0.9824561403508771,
+        "final_metric": 0.9385964912280702,
         "metric_name": "Accuracy",
-        "training_time": 0.6986472606658936,
+        "training_time": 0.5958847999572754,
         "train_loss_history": [
-            0.47032800912857053,
-            0.21805342237154643,
-            0.1444750651717186,
-            0.1033073216676712,
-            0.08983767032623291,
-            0.10669559072703123,
-            0.07748162485659123,
-            0.09073931227127711,
-            0.10657090855141481,
-            0.09729056805372238,
-            0.10940989659478267,
-            0.09342673762391011,
-            0.09244205305973689,
-            0.10300459067026774,
-            0.06873951703310013,
-            0.058357954521973926,
-            0.05317473281174898,
-            0.10823921704043944,
-            0.21547302721689146,
-            0.0785626869648695
+            0.4672547847032547,
+            0.25390071074167886,
+            0.17646875282128652,
+            0.15216098229090372,
+            0.10695795963207881,
+            0.09867784356077512,
+            0.08488003027935823,
+            0.07689230882873138,
+            0.12940090720852215,
+            0.06538942679762841,
+            0.06594022500018279,
+            0.07133447155356407,
+            0.07647354491055011,
+            0.0437615988155206,
+            0.12783327953269083,
+            0.05337503142654896,
+            0.11260009134809176,
+            0.05068639609962702,
+            0.06773212521026532,
+            0.060961037687957284
         ],
         "val_loss_history": [
-            0.2929528132081032,
-            0.1549401804804802,
-            0.1166217103600502,
-            0.09937837906181812,
-            0.08373987395316362,
-            0.07776748109608889,
-            0.07904568873345852,
-            0.0684556788764894,
-            0.07901665614917874,
-            0.09215647913515568,
-            0.08209909591823816,
-            0.07295143697410822,
-            0.07357637630775571,
-            0.08346065320074558,
-            0.08643456967547536,
-            0.08462672680616379,
-            0.08942156797274947,
-            0.08733211853541434,
-            0.09706544829532504,
-            0.0671855746768415
+            0.3288218080997467,
+            0.16700204089283943,
+            0.12594320252537727,
+            0.11711138114333153,
+            0.10512068681418896,
+            0.09114306606352329,
+            0.0844250563532114,
+            0.08576631778851151,
+            0.10180264478549361,
+            0.08766112988814712,
+            0.1024851561523974,
+            0.09799504419788718,
+            0.07551931589841843,
+            0.08264477830380201,
+            0.09532311046496034,
+            0.08886634837836027,
+            0.08738064160570502,
+            0.0788331963121891,
+            0.0953149925917387,
+            0.10713839530944824
         ],
         "total_epochs": 20,
-        "best_epoch": 19
+        "best_epoch": 12
     },
-    "final_metric": 0.9824561403508771,
+    "final_metric": 0.9385964912280702,
     "status": "completed",
     "failure_reason": null,
     "cost_summary": {
         "total_actions": 3,
-        "total_runtime_sec": 2.3151,
-        "total_cost_units": 0.6946
+        "total_runtime_sec": 2.6465,
+        "total_cost_units": 0.7939
     },
-    "timestamp": 1775182477.4026356,
+    "timestamp": 1775182198.224975,
     "policy_trace": [
         {
             "action": "inspect_dataset",
             "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
-            "timestamp": 1775182475.06085
+            "timestamp": 1775182195.5582557
         },
         {
             "action": "inspect_dataset",
             "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
-            "timestamp": 1775182475.0620468
+            "timestamp": 1775182195.5592382
         },
         {
             "action": "propose_search_space",
             "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
-            "timestamp": 1775182475.1729093
+            "timestamp": 1775182195.6505353
         },
         {
             "action": "propose_search_space",
             "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
-            "timestamp": 1775182475.174953
+            "timestamp": 1775182195.6519122
         },
         {
             "action": "run_trial",
             "rationale": "Selected run_trial: deps_satisfied, uncertainty=0.30, remaining_budget=10.",
-            "timestamp": 1775182475.1980147
+            "timestamp": 1775182195.661873
         },
         {
             "action": "run_trial",
             "rationale": "Selected run_trial: deps_satisfied, uncertainty=0.30, remaining_budget=10.",
-            "timestamp": 1775182475.20209
+            "timestamp": 1775182195.6648452
         }
     ],
-    "previous_metric": 0.9824561403508771,
+    "previous_metric": 0.9385964912280702,
     "critic_breakdown": {
         "quality": 1.0,
-        "time": 0.9941779394944509,
+        "time": 0.9950342933336894,
         "stability": 1.0,
         "budget": 0.75,
         "drift_risk": 1.0,
-        "aggregate": 0.9738355878988902
+        "aggregate": 0.9740068586667379
     }
 }

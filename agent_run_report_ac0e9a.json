@@ -1,0 +1,274 @@
+{
+    "run_id": "ac0e9ad5-59ae-4cea-8ec2-52b9a9e02b76",
+    "data_path": "wisconsin.csv",
+    "dataset_fingerprint": "fd87dd8cb33a3b3163f83494289e7fda",
+    "dataset_dna": {
+        "target_detection_method": "user_provided",
+        "cleaning_report": {
+            "rows_before": 569,
+            "rows_after": 569,
+            "target_null_rows_dropped": 0,
+            "feature_nulls_before": 569,
+            "feature_nulls_after": 0
+        },
+        "n_instances": 569,
+        "n_features": 32,
+        "n_numerical": 32,
+        "n_categorical": 0,
+        "dimensionality": 0.056239015817223195,
+        "missing_ratio": 0.030303030303030304,
+        "sparsity": 0.035533831282952545,
+        "mean_skewness": 1.888101007487743,
+        "max_skewness": 6.456673159539137,
+        "mean_kurtosis": 8.834968486547568,
+        "avg_correlation": 0.3499191635182545,
+        "max_correlation": 0.9978552814938109,
+        "coefficient_variation": 0.5850841983586641,
+        "avg_cardinality": 0.0,
+        "max_cardinality": 0.0,
+        "high_cardinality_flag": 0.0,
+        "high_cardinality_feature_count": 0,
+        "task_type": "classification",
+        "n_classes": 2,
+        "class_imbalance_ratio": 1.6839622641509433,
+        "target_entropy": 0.6603163491952275,
+        "normalized_entropy": 0.9526351224018599,
+        "minority_class_pct": 0.37258347978910367,
+        "target_skewness": 0.0,
+        "target_cv": 0.0,
+        "task_difficulty_score": 1.1565651800999068,
+        "vizier_search_space_hint": {
+            "lr": [
+                0.0001,
+                0.01
+            ],
+            "max_epochs": [
+                10,
+                50
+            ],
+            "batch_size": [
+                16,
+                128
+            ]
+        }
+    },
+    "predicted_params": {
+        "learning_rate": 0.0025834392742383537,
+        "weight_decay_l2": 1e-05,
+        "batch_size": 32,
+        "dropout": 0.11421353251318103,
+        "optimizer_type": "adam"
+    },
+    "recommended_algorithms": {
+        "recommendations": [
+            {
+                "id": "rf",
+                "label": "Random Forest",
+                "reason": "Strong default for tabular classification; robust to scaling and mixed feature interactions.",
+                "search_space": {
+                    "n_estimators": [
+                        50,
+                        500
+                    ],
+                    "max_depth": [
+                        3,
+                        20
+                    ],
+                    "min_samples_split": [
+                        2,
+                        20
+                    ]
+                },
+                "deployable": true,
+                "task_type": "classification"
+            },
+            {
+                "id": "pytorch_mlp",
+                "label": "Neural Network (PyTorch)",
+                "reason": "Use when you want adaptive training dynamics and you expect complex feature interactions.",
+                "search_space": {
+                    "lr": [
+                        0.0001,
+                        0.1
+                    ],
+                    "dropout": [
+                        0.0,
+                        0.5
+                    ],
+                    "weight_decay_l2": [
+                        1e-05,
+                        0.1
+                    ]
+                },
+                "deployable": true,
+                "task_type": "classification"
+            }
+        ],
+        "n_trials_budget": 20
+    },
+    "actions_taken": [
+        {
+            "action": "inspect_dataset",
+            "status": "success",
+            "result": "{\"message\": \"Dataset analysis completed\", \"dna_feature_count\": 29, \"semantic_hits\": 0}",
+            "details": {
+                "message": "Dataset analysis completed",
+                "dna_feature_count": 29,
+                "semantic_hits": 0
+            },
+            "failure_type": null,
+            "timestamp": 1775181925.513483
+        },
+        {
+            "action": "propose_search_space",
+            "status": "failed",
+            "result": "{\"message\": \"'MetaLearner' object has no attribute 'knowledge_base_ready'\", \"exception_type\": \"AttributeError\", \"attempts\": 2}",
+            "details": {
+                "message": "'MetaLearner' object has no attribute 'knowledge_base_ready'",
+                "exception_type": "AttributeError",
+                "attempts": 2
+            },
+            "failure_type": "io_error",
+            "timestamp": 1775181925.5581126
+        }
+    ],
+    "action_costs": [
+        {
+            "action": "inspect_dataset",
+            "duration_sec": 0.1096,
+            "cost_units": 0.0329,
+            "success": true,
+            "error_class": null,
+            "timestamp": 1775181925.5516758
+        },
+        {
+            "action": "propose_search_space",
+            "duration_sec": 0.0006,
+            "cost_units": 1.0002,
+            "success": false,
+            "error_class": "io_error",
+            "timestamp": 1775181925.562744
+        }
+    ],
+    "working_memory": {
+        "semantic_context": [],
+        "dataset_profile": {
+            "task_type": "classification",
+            "n_features": 32,
+            "n_instances": 569,
+            "sparsity": 0.035533831282952545
+        }
+    },
+    "episodic_memory": [
+        {
+            "type": "inspect_dataset",
+            "payload": {
+                "message": "Dataset analysis completed",
+                "dna_feature_count": 29,
+                "semantic_hits": 0
+            },
+            "timestamp": 1775181925.5145469
+        }
+    ],
+    "semantic_memory": {},
+    "postmortems": [
+        {
+            "action": "propose_search_space",
+            "failure_type": "io_error",
+            "message": "'MetaLearner' object has no attribute 'knowledge_base_ready'",
+            "tags": [
+                "io_error",
+                "propose_search_space",
+                "retry_exhausted"
+            ],
+            "timestamp": 1775181925.5596125
+        }
+    ],
+    "decision_traces": [
+        {
+            "stage": "planner",
+            "action": "inspect_dataset",
+            "decision": "selected",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "confidence": 0.6,
+            "timestamp": 1775181925.439524
+        },
+        {
+            "stage": "planner",
+            "action": "inspect_dataset",
+            "decision": "selected",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "confidence": 0.6,
+            "timestamp": 1775181925.440503
+        },
+        {
+            "stage": "preflight",
+            "action": "inspect_dataset",
+            "decision": "pass",
+            "rationale": "preflight_ok",
+            "confidence": 1.0,
+            "timestamp": 1775181925.5506294
+        },
+        {
+            "stage": "planner",
+            "action": "propose_search_space",
+            "decision": "selected",
+            "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
+            "confidence": 0.88,
+            "timestamp": 1775181925.5524132
+        },
+        {
+            "stage": "planner",
+            "action": "propose_search_space",
+            "decision": "selected",
+            "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
+            "confidence": 0.88,
+            "timestamp": 1775181925.5540218
+        }
+    ],
+    "preflight_checks": [
+        {
+            "ok": true,
+            "issues": [],
+            "blockers": [],
+            "summary": "preflight_ok",
+            "task_type": "classification",
+            "missing_ratio": 0.030303030303030304,
+            "leakage_signals": [],
+            "timestamp": 1775181925.5496404
+        }
+    ],
+    "abstentions": [],
+    "trial_results": null,
+    "final_metric": null,
+    "status": "failed",
+    "failure_reason": "'MetaLearner' object has no attribute 'knowledge_base_ready'",
+    "cost_summary": {
+        "total_actions": 2,
+        "total_runtime_sec": 0.1102,
+        "total_cost_units": 1.0331
+    },
+    "timestamp": 1775181925.5627558,
+    "policy_trace": [
+        {
+            "action": "inspect_dataset",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "timestamp": 1775181925.43952
+        },
+        {
+            "action": "inspect_dataset",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "timestamp": 1775181925.4404998
+        },
+        {
+            "action": "propose_search_space",
+            "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
+            "timestamp": 1775181925.5524108
+        },
+        {
+            "action": "propose_search_space",
+            "rationale": "Selected propose_search_space: deps_satisfied, uncertainty=0.30, remaining_budget=11.",
+            "timestamp": 1775181925.5540192
+        }
+    ]
+}

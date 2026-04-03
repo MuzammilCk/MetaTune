@@ -215,6 +215,15 @@ class DynamicTrainer:
                 self.callback(epoch + 1, epochs, avg_train_loss, avg_val_loss, metric)
                 time.sleep(0.1) # Visual effect for demo
                 
+        # Save the trained model weights
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'hyperparameters': self.params,
+            'input_dim': self.input_dim,
+            'output_dim': self.output_dim
+        }, 'trained_model.pth')
+                
         return {
             "status": "Optimization Complete",
             "final_metric": metric,

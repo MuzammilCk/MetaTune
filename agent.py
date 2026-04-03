@@ -358,6 +358,8 @@ class MetaTuneAgent:
         if not analyzer.load_data():
             raise ValueError("Failed to load dataset for analysis.")
         dna = analyzer.analyze()
+        if dna is None:
+            raise ValueError("Dataset analysis failed: DNA signature could not be extracted (possibly due to invalid target column or entirely null data).")
         self.memory.state["dataset_dna"] = dna
         semantic_context = self.memory.retrieve_semantic_context(dna, top_k=3)
         self.memory.set_working_memory("semantic_context", semantic_context)
@@ -399,8 +401,8 @@ class MetaTuneAgent:
         self.memory.state["predicted_params"] = params
         self.memory.state["recommended_algorithms"] = algos
 
-        if self.meta_learner.knowledge_base_ready:
-            if self.request_approval("MetaBrain is ready to learn from accumulated experience (weights update). Train MetaBrain prior to predicting?", auto_approve=False, default_response=False):
+        if getattr(self.meta_learner, "is_trained", False) is False and os.path.exists(getattr(self.meta_learner, "knowledge_base_path", "knowledge_base.csv")):
+            if self.request_approval("MetaBrain has historical data. Train MetaBrain prior to predicting?", auto_approve=False, default_response=False):
                 self.meta_learner.train()
 
         details = {

@@ -33,7 +33,8 @@ class DatasetAnalyzer:
 
         priority_names = {
             "target", "label", "class", "y", "response", "outcome",
-            "price", "sale_price", "selling_price", "sales"
+            "price", "sale_price", "selling_price", "sales",
+            "diagnosis", "disease"
         }
         normalized = {c: str(c).strip().lower() for c in self.data.columns}
         for col, col_norm in normalized.items():
@@ -44,8 +45,10 @@ class DatasetAnalyzer:
             if any(token in col_norm for token in ["target", "label", "class", "outcome", "price"]):
                 return col, "name_heuristic_partial"
 
+        valid_cols = [c for c in self.data.columns if not str(c).strip().lower().startswith("unnamed")]
+        if valid_cols:
+            return valid_cols[-1], "fallback_last_column"
         return self.data.columns[-1], "fallback_last_column"
-
     def _clean_data(self, df, target_col):
         """Cleans nulls robustly while preventing target leakage."""
         cleaned = df.copy()
@@ -88,6 +91,8 @@ class DatasetAnalyzer:
                 return False
                 
             self.data = pd.read_csv(self.file_path)
+            # Clean completely empty trailing columns often caused by trailing commas in CSVs
+            self.data.dropna(axis=1, how='all', inplace=True)
             print(f"✓ Success: Loaded '{os.path.basename(self.file_path)}'")
             print(f"  Shape: {self.data.shape[0]} rows x {self.data.shape[1]} cols")
             return True

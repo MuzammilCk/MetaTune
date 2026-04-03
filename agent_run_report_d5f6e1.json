@@ -1,0 +1,92 @@
+{
+    "run_id": "d5f6e113-8225-45a8-837e-eecc84bbbd68",
+    "data_path": "global_car_dataset.csv",
+    "dataset_fingerprint": "0eed60d45e5c3f563db7beb46aaef605",
+    "dataset_dna": null,
+    "predicted_params": null,
+    "recommended_algorithms": null,
+    "actions_taken": [
+        {
+            "action": "inspect_dataset",
+            "status": "failed",
+            "result": "{\"message\": \"'NoneType' object has no attribute 'get'\", \"exception_type\": \"AttributeError\", \"attempts\": 2}",
+            "details": {
+                "message": "'NoneType' object has no attribute 'get'",
+                "exception_type": "AttributeError",
+                "attempts": 2
+            },
+            "failure_type": "unknown_error",
+            "timestamp": 1775181730.1121955
+        }
+    ],
+    "action_costs": [
+        {
+            "action": "inspect_dataset",
+            "duration_sec": 0.1041,
+            "cost_units": 1.0312,
+            "success": false,
+            "error_class": "unknown_error",
+            "timestamp": 1775181730.1142817
+        }
+    ],
+    "working_memory": {
+        "semantic_context": []
+    },
+    "episodic_memory": [],
+    "semantic_memory": {},
+    "postmortems": [
+        {
+            "action": "inspect_dataset",
+            "failure_type": "unknown_error",
+            "message": "'NoneType' object has no attribute 'get'",
+            "tags": [
+                "unknown_error",
+                "inspect_dataset",
+                "retry_exhausted"
+            ],
+            "timestamp": 1775181730.1127012
+        }
+    ],
+    "decision_traces": [
+        {
+            "stage": "planner",
+            "action": "inspect_dataset",
+            "decision": "selected",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "confidence": 0.6,
+            "timestamp": 1775181730.005646
+        },
+        {
+            "stage": "planner",
+            "action": "inspect_dataset",
+            "decision": "selected",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "confidence": 0.6,
+            "timestamp": 1775181730.0065467
+        }
+    ],
+    "preflight_checks": [],
+    "abstentions": [],
+    "trial_results": null,
+    "final_metric": null,
+    "status": "failed",
+    "failure_reason": "'NoneType' object has no attribute 'get'",
+    "cost_summary": {
+        "total_actions": 1,
+        "total_runtime_sec": 0.1041,
+        "total_cost_units": 1.0312
+    },
+    "timestamp": 1775181730.1143029,
+    "policy_trace": [
+        {
+            "action": "inspect_dataset",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "timestamp": 1775181730.0056422
+        },
+        {
+            "action": "inspect_dataset",
+            "rationale": "Selected inspect_dataset: deps_satisfied, uncertainty=1.00, remaining_budget=12.",
+            "timestamp": 1775181730.0065439
+        }
+    ]
+}
