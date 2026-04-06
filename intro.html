@@ -1002,6 +1002,33 @@
 
   <script>
     /* ── CANVAS PARTICLES ── */
+    const urlParams = new URLSearchParams(window.location.search);
+    const isDark = urlParams.get('theme') !== 'light';
+    const BG_COLOR = isDark ? '#020617' : '#F8FAFC';
+    const PARTICLE_COLOR_A = isDark ? '0,212,255' : '2,132,199';    // bio-cyan
+    const PARTICLE_COLOR_B = isDark ? '0,255,136' : '5,150,105';    // dna-green
+
+    // ── Light mode: disable scanline/grain overlays ──
+    if (!isDark) {
+      document.querySelector('.scanline').style.opacity = '0';
+      document.querySelector('.grain').style.opacity = '0';
+      document.querySelector('.vignette').style.background =
+        'radial-gradient(circle at top, rgba(2,132,199,0.08) 0%, transparent 50%), ' +
+        'radial-gradient(circle at bottom, rgba(219,39,119,0.06) 0%, transparent 55%), ' +
+        'radial-gradient(circle at center, transparent 0%, rgba(248,250,252,0.3) 70%)';
+      document.body.style.background = BG_COLOR;
+      // Reduce glow text-shadows in light mode
+      document.querySelectorAll('.accent').forEach(el => {
+        el.style.textShadow = '0 0 8px rgba(5,150,105,0.3)';
+      });
+      document.querySelectorAll('.danger').forEach(el => {
+        el.style.textShadow = '0 0 8px rgba(219,39,119,0.3)';
+      });
+      document.querySelectorAll('.stat-value').forEach(el => {
+        el.style.textShadow = '0 0 8px rgba(5,150,105,0.25)';
+      });
+    }
+
     const canvas = document.getElementById('bg');
     const ctx = canvas.getContext('2d');
     let W = 0, H = 0;
@@ -1061,8 +1088,8 @@
       }
       draw(c) {
         const g = c.createRadialGradient(this.x, this.y, 0, this.x, this.y, 28 * this.z);
-        g.addColorStop(0, `rgba(0,212,255,${0.5 * this.alpha})`);
-        g.addColorStop(0.4, `rgba(0,255,136,${0.28 * this.alpha})`);
+        g.addColorStop(0, `rgba(${PARTICLE_COLOR_A},${0.5 * this.alpha})`);
+        g.addColorStop(0.4, `rgba(${PARTICLE_COLOR_B},${0.28 * this.alpha})`);
         g.addColorStop(1, 'rgba(0,0,0,0)');
         c.fillStyle = g;
         c.beginPath();
@@ -1074,7 +1101,7 @@
     const particles = Array.from({ length: 80 }, () => new Particle());
     function animate() {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#020617';
+      ctx.fillStyle = BG_COLOR;
       ctx.fillRect(0, 0, W, H);
       particles.forEach(p => { p.step(); p.draw(ctx); });
       requestAnimationFrame(animate);
