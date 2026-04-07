@@ -396,46 +396,60 @@ if uploaded_file:
             dna = analyzer.analyze()
             st.session_state['dna'] = dna  # cache so training reruns can access it
         
+        # ── THEME COLORS FOR PYTHON SIDE ──
+        is_dark = st.session_state.theme == 'dark'
+        c_dna_green = "#00FF88" if is_dark else "#059669"
+        c_neural_amber = "#FFB800" if is_dark else "#D97706"
+        c_quantum_magenta = "#FF006E" if is_dark else "#DB2777"
+        c_bio_cyan = "#00D4FF" if is_dark else "#0284C7"
+        c_evolution_purple = "#9B5DE5" if is_dark else "#7C3AED"
+        
+        c_grid = "rgba(26,37,64,0.8)" if is_dark else "rgba(203,213,225,0.8)"
+        c_fill = "rgba(0, 255, 136, 0.08)" if is_dark else "rgba(5, 150, 105, 0.15)"
+        c_bar_bg = "rgba(26,37,64,0.6)" if is_dark else "rgba(203,213,225,0.5)"
+        p_theme = get_plotly_theme_colors(st.session_state.theme)
+
         # Radar Chart for DNA
+        _safe_val = lambda k: float(dna.get(k, 0)) if dna.get(k, 0) == dna.get(k, 0) else 0.0
         categories = ['Skewness', 'Entropy', 'Sparsity', 'Imbalance', 'Dimensionality']
         values = [
-            min(dna['mean_skewness'], 5)/5, 
-            min(dna['target_entropy'], 2)/2,
-            dna['sparsity'],
-            min(dna['class_imbalance_ratio'], 10)/10,
-            min(dna['dimensionality'], 1)
+            min(_safe_val('mean_skewness'), 5)/5, 
+            min(_safe_val('target_entropy'), 2)/2,
+            min(_safe_val('sparsity'), 1),
+            min(_safe_val('class_imbalance_ratio'), 10)/10,
+            min(_safe_val('dimensionality'), 1)
         ]
         
         fig_radar = go.Figure(data=go.Scatterpolar(
             r=values + [values[0]],  # close the polygon
             theta=categories + [categories[0]],
             fill='toself',
-            line=dict(color='#00FF88', width=2),
-            fillcolor='rgba(0, 255, 136, 0.08)',
-            marker=dict(color='#00FF88', size=6)
+            line=dict(color=c_dna_green, width=2),
+            fillcolor=c_fill,
+            marker=dict(color=c_dna_green, size=6)
         ))
         fig_radar.update_layout(
             polar=dict(
                 radialaxis=dict(
                     visible=True, range=[0, 1],
                     showticklabels=False,
-                    gridcolor='rgba(26,37,64,0.8)',
-                    linecolor='rgba(26,37,64,0.8)'
+                    gridcolor=c_grid,
+                    linecolor=c_grid
                 ),
                 angularaxis=dict(
-                    gridcolor='rgba(26,37,64,0.8)',
-                    linecolor='rgba(26,37,64,0.5)',
-                    tickfont=dict(family='Share Tech Mono', size=10, color='#7A8BA0')
+                    gridcolor=c_grid,
+                    linecolor=c_grid,
+                    tickfont=dict(family='Share Tech Mono', size=10, color=p_theme['font_color'])
                 ),
-                bgcolor='rgba(8,11,20,0.0)'
+                bgcolor='rgba(0,0,0,0)'
             ),
-            paper_bgcolor=get_plotly_theme_colors(st.session_state.theme)['paper_bgcolor'],
-            plot_bgcolor=get_plotly_theme_colors(st.session_state.theme)['plot_bgcolor'],
-            font=dict(family='Share Tech Mono', color='#7A8BA0'),
+            paper_bgcolor=p_theme['paper_bgcolor'],
+            plot_bgcolor=p_theme['plot_bgcolor'],
+            font=dict(family='Share Tech Mono', color=p_theme['font_color']),
             margin=dict(l=20, r=20, t=20, b=20),
             height=240,
         )
-        st.plotly_chart(fig_radar, width='stretch')
+        st.plotly_chart(fig_radar, use_container_width=True, theme=None)
 
         # ── DNA METRIC BARS (add AFTER radar, BEFORE existing metrics) ──
         st.markdown(f"""
@@ -449,13 +463,13 @@ if uploaded_file:
           <div style="font-family:var(--font-mono); font-size:11px; letter-spacing:3px; color:var(--text-primary); margin-bottom:16px; text-transform:uppercase; font-weight:bold;">GENOME READOUT</div>
 
           {(lambda _safe: ''.join([
-            f'''<div style="margin-bottom:12px;"><div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px;"><span title="{tooltip}" style="font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; color:var(--text-secondary); text-transform:uppercase; cursor:help; border-bottom:1px dotted var(--text-dim);">{name}</span><span style="font-family:var(--font-display); font-size:14px; letter-spacing:1px; color:var(--text-primary);">{val:.4f}</span></div><div style="background:rgba(26,37,64,0.6); height:2px; overflow:hidden;"><div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div></div></div>'''
+            f'''<div style="margin-bottom:12px;"><div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:6px;"><span title="{tooltip}" style="font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; color:var(--text-secondary); text-transform:uppercase; cursor:help; border-bottom:1px dotted var(--text-dim);">{name}</span><span style="font-family:var(--font-display); font-size:14px; letter-spacing:1px; color:var(--text-primary);">{val:.4f}</span></div><div style="background:{c_bar_bg}; height:2px; overflow:hidden;"><div style="height:100%; width:{int(pct*100)}%; background:linear-gradient(90deg,{color1},{color2}); animation:barFillAnim 1.2s ease-out forwards;"></div></div></div>'''
             for name, val, pct, color1, color2, tooltip in [
-              ('TARGET ENTROPY',    _safe('target_entropy'),         min(_safe('target_entropy')/2,1),        '#00FF88','#00D4FF', 'Measures label unpredictability (0 = absolute certainty, >1.0 = high variance noise)'),
-              ('SPARSITY',          _safe('sparsity'),               min(_safe('sparsity'),1),                '#FFB800','#FF006E', 'Percentage of zero values in the feature matrix. High sparsity requires specialized handling'),
-              ('IMBALANCE RATIO',   _safe('class_imbalance_ratio'),  min(_safe('class_imbalance_ratio')/10,1),'#FF006E','#9B5DE5', 'Ratio describing how heavily skewed the target classes/distribution are'),
-              ('DIMENSIONALITY',    _safe('dimensionality'),         min(_safe('dimensionality'),1),          '#00D4FF','#00FF88', 'Ratio of features to instances. High dimensionality risks the curse of dimensionality'),
-              ('TASK DIFFICULTY',   _safe('task_difficulty_score'),  min(_safe('task_difficulty_score')/3,1), '#9B5DE5','#FF006E', 'Composite score indicating how hard the optimization landscape is to traverse'),
+              ('TARGET ENTROPY',    _safe('target_entropy'),         min(_safe('target_entropy')/2,1),        c_dna_green, c_bio_cyan, 'Measures label unpredictability (0 = absolute certainty, >1.0 = high variance noise)'),
+              ('SPARSITY',          _safe('sparsity'),               min(_safe('sparsity'),1),                c_neural_amber, c_quantum_magenta, 'Percentage of zero values in the feature matrix. High sparsity requires specialized handling'),
+              ('IMBALANCE RATIO',   _safe('class_imbalance_ratio'),  min(_safe('class_imbalance_ratio')/10,1),c_quantum_magenta, c_evolution_purple, 'Ratio describing how heavily skewed the target classes/distribution are'),
+              ('DIMENSIONALITY',    _safe('dimensionality'),         min(_safe('dimensionality'),1),          c_bio_cyan, c_dna_green, 'Ratio of features to instances. High dimensionality risks the curse of dimensionality'),
+              ('TASK DIFFICULTY',   _safe('task_difficulty_score'),  min(_safe('task_difficulty_score')/3,1), c_evolution_purple, c_quantum_magenta, 'Composite score indicating how hard the optimization landscape is to traverse'),
             ]
           ]))(lambda k: float(dna.get(k, 0)) if dna.get(k, 0) == dna.get(k, 0) else 0.0)}
 
