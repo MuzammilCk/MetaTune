@@ -106,6 +106,10 @@ class DatasetAnalyzer:
             print("❌ No data loaded. Call load_data() first.")
             return None
 
+        if len(self.data) == 0:
+            print("❌ Error: Dataset has 0 rows after loading (header-only or empty CSV).")
+            return None
+
         # 1. Target Column Detection
         detected_target, detection_method = self._detect_target_column()
         if detected_target is None:
@@ -157,9 +161,18 @@ class DatasetAnalyzer:
             if len(num_cols) > 1:
                 subset = num_data.iloc[:1000]
                 corr_matrix = subset.corr().abs()
-                np.fill_diagonal(corr_matrix.values, 0)
-                self.meta_features['avg_correlation'] = corr_matrix.mean().mean()
-                self.meta_features['max_correlation'] = corr_matrix.max().max()
+                # Exclude the diagonal (always self-correlation == 1) by masking
+                # rather than mutating in place. corr_matrix.values can hand back
+                # a read-only view of pandas' internal block under Copy-on-Write
+                # (default since pandas 2.x/3.x), so the previous
+                # np.fill_diagonal(corr_matrix.values, 0) raised
+                # "ValueError: underlying array is read-only" on every run,
+                # crashing INSPECT_DATASET before the agent could do anything.
+                corr_values = corr_matrix.to_numpy()
+                off_diagonal = corr_values[~np.eye(len(corr_values), dtype=bool)]
+                off_diagonal = off_diagonal[~np.isnan(off_diagonal)]  # e.g. constant columns
+                self.meta_features['avg_correlation'] = float(off_diagonal.mean()) if off_diagonal.size else 0.0
+                self.meta_features['max_correlation'] = float(off_diagonal.max()) if off_diagonal.size else 0.0
             else:
                 self.meta_features['avg_correlation'] = 0.0
                 self.meta_features['max_correlation'] = 0.0
