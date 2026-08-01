@@ -9,6 +9,8 @@ from enum import Enum
 import sys
 from dataclasses import dataclass
 
+import pandas as pd
+
 # Local imports
 try:
     from data_analyzer import DatasetAnalyzer
@@ -275,7 +277,7 @@ class EpisodicMemory:
 # ==========================================
 
 class MetaTuneAgent:
-    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: str = "episodic_memory.json", action_budget: int = 12, max_runtime_sec: int = 900, max_trials: int = 3):
+    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: Optional[str] = None, output_dir: str = ".metatune_runs", action_budget: int = 12, max_runtime_sec: int = 900, max_trials: int = 3):
         self.data_path = data_path
         self.target_col = target_col
         self.metric_threshold = metric_threshold
@@ -285,7 +287,18 @@ class MetaTuneAgent:
         self.max_runtime_sec = max_runtime_sec
         self.max_trials = max_trials
         self.run_started_at = time.time()
-        
+
+        # All generated run artifacts (episodic memory, run reports) live
+        # under output_dir by default rather than the current working
+        # directory, so running the agent from a repo checkout doesn't leave
+        # episodic_memory.json / agent_run_report_*.json sitting in the repo.
+        # Callers that pass an explicit memory_file (e.g. tests pointing at a
+        # tmpdir) get exactly that path, unchanged.
+        self.output_dir = output_dir
+        os.makedirs(self.output_dir, exist_ok=True)
+        if memory_file is None:
+            memory_file = os.path.join(self.output_dir, "episodic_memory.json")
+
         self.memory = EpisodicMemory(memory_file=memory_file)
         if force_new:
             self.memory.load(force_new=True)
@@ -416,12 +429,17 @@ class MetaTuneAgent:
         return details
 
     def _tool_run_trial(self) -> Dict[str, Any]:
+        # A fresh trial is starting: give the recovery machinery (diagnose /
+        # revise) a clean slate so it can react to THIS trial's outcome even
+        # if it already ran once earlier in this run.
+        self.task_graph[ActionType.DIAGNOSE_FAILURE].status = TaskStatus.PENDING
+        self.task_graph[ActionType.REVISE_STRATEGY].status = TaskStatus.PENDING
+
         params = self.memory.state.get("predicted_params")
         dna = self.memory.state.get("dataset_dna")
 
         if self.use_bilevel:
             if self.request_approval(f"Proceed with Expensive Bilevel Optimization (N=trials, Evolutionary tuning)?", auto_approve=False, default_response=False):
-                import pandas as pd
                 from sklearn.model_selection import train_test_split
 
                 df = pd.read_csv(self.data_path)
@@ -463,28 +481,69 @@ class MetaTuneAgent:
         return details
 
     def _tool_diagnose_failure(self) -> Dict[str, Any]:
-        failure = f"Metric ({self.memory.state.get('final_metric', 0.0)}) fell below threshold ({self.metric_threshold})."
+        metric = self.memory.state.get("final_metric")
+        if metric is None:
+            # RUN_TRIAL never produced a metric, so this is a hard execution
+            # failure (exception), not a below-threshold result. Report the
+            # real cause instead of a fabricated "metric fell below
+            # threshold" message that would misrepresent what happened.
+            underlying = self.memory.state.get("failure_reason") or "no metric was recorded and no error message was captured."
+            failure = f"Trial execution failed: {underlying}"
+            diagnosis_kind = "execution_error"
+        else:
+            failure = f"Metric ({metric}) fell below threshold ({self.metric_threshold})."
+            diagnosis_kind = "threshold_miss"
+
         self.memory.state["failure_reason"] = failure
+        self.memory.state["diagnosis_kind"] = diagnosis_kind
         print(f"   Diagnosis: {failure}")
-        details = {"message": "Failure diagnosed", "reason": failure}
+        details = {"message": "Failure diagnosed", "reason": failure, "diagnosis_kind": diagnosis_kind}
         self.memory.log_action(ActionType.DIAGNOSE_FAILURE, "success", details, failure_type=FailureType.TRAINING)
         self.memory.add_episode("diagnose_failure", details)
+        # executor() unconditionally marks status "executing" while a tool
+        # runs; explicitly restore FAILED here (mirroring how
+        # _tool_revise_strategy controls status at the end of its own turn)
+        # so run()'s recovery branch stays engaged for the follow-up
+        # REVISE_STRATEGY step instead of falling through to a redundant
+        # critic() re-evaluation of the same stale metric.
+        self.memory.state["status"] = AgentState.FAILED.value
         return details
 
     def _tool_revise_strategy(self) -> Dict[str, Any]:
-        print(f"   [Revise] Suggesting fallback logic — e.g. reducing LR or expanding search space.")
-        params = self.memory.state.get("predicted_params", {})
-        if 'learning_rate' in params:
-            params['learning_rate'] /= 2.0
+        revision_count = int(self.memory.state.get("revision_count", 0)) + 1
+        self.memory.state["revision_count"] = revision_count
+
+        params = dict(self.memory.state.get("predicted_params") or {})
+        changes = []
+        if params.get('learning_rate'):
+            params['learning_rate'] = max(float(params['learning_rate']) / 2.0, 1e-6)
+            changes.append(f"learning_rate -> {params['learning_rate']:.6g}")
+        if 'dropout' in params:
+            params['dropout'] = float(min(float(params.get('dropout', 0.1)) + 0.05, 0.5))
+            changes.append(f"dropout -> {params['dropout']:.3f}")
         self.memory.state["predicted_params"] = params
+
+        revision_summary = ", ".join(changes) if changes else "no tunable params available to revise"
+        print(f"   [Revise] Attempt #{revision_count}: {revision_summary}. Re-queuing a trial with the updated params.")
+
         details = {
             "message": "Strategy revised",
-            "revision": "Halved learning rate for next trial",
+            "revision": revision_summary,
+            "revision_count": revision_count,
             "updated_params": params,
         }
         self.memory.log_action(ActionType.REVISE_STRATEGY, "success", details)
         self.memory.add_episode("revise_strategy", details)
-        self.memory.state["status"] = AgentState.COMPLETED.value
+
+        # This is the crux of self-correction: hand control back to the
+        # planner instead of declaring the run COMPLETED here. Resetting
+        # RUN_TRIAL to PENDING makes it a valid candidate again (its only
+        # dependency, PROPOSE_SEARCH_SPACE, is already satisfied), so the
+        # next planning pass will re-run the trial with the revised params.
+        # The RUN_TRIAL guardrail (--max-trials) is what actually bounds how
+        # many times this can happen, so looping back here is always safe.
+        self.task_graph[ActionType.RUN_TRIAL].status = TaskStatus.PENDING
+        self.memory.state["status"] = AgentState.PLANNING.value
         return details
 
     def request_approval(self, prompt: str, auto_approve: bool = False, default_response: bool = False) -> bool:
@@ -508,12 +567,30 @@ class MetaTuneAgent:
                 return False
 
     def _classify_failure(self, exc: Exception) -> FailureType:
+        """Classify a caught exception for retry-policy and postmortem
+        purposes. Exception type is checked first since it's a reliable
+        signal; message-keyword matching is a fallback for the generic
+        ValueError/RuntimeError types that pandas/numpy/torch tend to raise
+        for very different underlying reasons."""
+        type_map = {
+            FileNotFoundError: FailureType.IO,
+            PermissionError: FailureType.IO,
+            IsADirectoryError: FailureType.IO,
+            json.JSONDecodeError: FailureType.IO,
+            KeyError: FailureType.DATA,
+            pd.errors.EmptyDataError: FailureType.DATA,
+            pd.errors.ParserError: FailureType.DATA,
+        }
+        for exc_type, failure_type in type_map.items():
+            if isinstance(exc, exc_type):
+                return failure_type
+
         msg = str(exc).lower()
-        if any(k in msg for k in ["csv", "dataset", "column", "data", "load"]):
+        if any(k in msg for k in ["csv", "dataset", "column", "target", "data", "load", "read-only", "read only"]):
             return FailureType.DATA
         if any(k in msg for k in ["permission", "approve", "input"]):
             return FailureType.APPROVAL
-        if any(k in msg for k in ["file", "path", "write", "read", "json"]):
+        if any(k in msg for k in ["file", "path", "write", "json"]):
             return FailureType.IO
         if any(k in msg for k in ["train", "optimizer", "metric", "epoch"]):
             return FailureType.TRAINING
@@ -557,8 +634,6 @@ class MetaTuneAgent:
         signals = []
         if data is None or target_col is None or target_col not in getattr(data, "columns", []):
             return signals
-
-        import pandas as pd
 
         feature_cols = [c for c in data.columns if c != target_col]
         leakage_name_tokens = ["target", "label", "outcome", "y_true", "ground_truth"]
@@ -851,34 +926,68 @@ class MetaTuneAgent:
         print(f"\n===========================================================")
         print(f"🤖 MetaTune Agentic Orchestrator [Run ID: {self.memory.state['run_id']}]")
         print(f"===========================================================\n")
-        
+
+        # Belt-and-suspenders cap on loop iterations, independent of the
+        # action_budget/max_trials guardrails. Those already bound normal
+        # operation; this only guards against a future control-flow bug
+        # spinning the loop without ever advancing memory.state["status"].
+        max_iterations = max(50, self.action_budget * 4)
+        iterations = 0
+
         while self.memory.state["status"] not in [AgentState.COMPLETED.value]:
-            
-            # If standard loop failed, handle diagnostics
-            plan = self.planner()
-            if self.memory.state["status"] == AgentState.FAILED.value:
-                if plan:
-                    exec_result = self.executor(plan["action"], rationale=plan["rationale"])
-                    if not exec_result.get("success"):
-                        print(f"⚠️ [Agent] Recovery action failed: {exec_result.get('error_class')}")
-                else: 
-                    break # Out of options
-                continue
-            
-            self.memory.state["status"] = AgentState.PLANNING.value
-            plan = self.planner()
-            
-            if not plan:
-                # All primary execution steps finished, run critic
-                success = self.critic()
-                if success:
-                    break
-            else:
+            iterations += 1
+            if iterations > max_iterations:
+                print(f"⚠️ [Agent] Safety cap of {max_iterations} loop iterations reached. Stopping.")
+                self.memory.state["status"] = AgentState.FAILED.value
+                self.memory.state["failure_reason"] = f"Orchestration loop exceeded safety cap ({max_iterations} iterations)."
+                self.memory.save()
+                break
+
+            is_recovering = self.memory.state["status"] == AgentState.FAILED.value
+            if not is_recovering:
+                self.memory.state["status"] = AgentState.PLANNING.value
+            plan = self.planner()  # exactly one planner() call per iteration
+
+            if is_recovering:
+                if plan is None:
+                    break  # Out of recovery options (status remains FAILED).
                 exec_result = self.executor(plan["action"], rationale=plan["rationale"])
                 if not exec_result.get("success"):
-                    print(f"⚠️ [Agent] Action {plan['action'].value} failed. Halting workflow.")
+                    print(f"⚠️ [Agent] Recovery action failed: {exec_result.get('error_class')}")
+                    # Keep looping — the next iteration re-reads status and
+                    # either finds another recovery step or runs out above.
+                continue
+
+            if plan is None:
+                # Nothing left in the primary plan (inspect/propose/run_trial
+                # all done) — ask the critic to judge the outcome. A False
+                # verdict flips status to FAILED, which the recovery branch
+                # above picks up on the next iteration (diagnose -> revise ->
+                # back to RUN_TRIAL with updated params, bounded by
+                # --max-trials).
+                if self.critic():
                     break
-        
+                continue
+
+            exec_result = self.executor(plan["action"], rationale=plan["rationale"])
+            if not exec_result.get("success"):
+                error_class = exec_result.get("error_class")
+                if error_class == "resource_limit":
+                    # A guardrail (budget / runtime / max_trials) deliberately
+                    # stopped the run. This is a clean, intentional stop, not
+                    # something to route into diagnose/revise.
+                    print(f"⚠️ [Agent] Guardrail stopped the run: {exec_result.get('rationale')}")
+                    self.memory.state["status"] = AgentState.FAILED.value
+                    self.memory.state["failure_reason"] = exec_result.get("rationale")
+                else:
+                    # A genuine tool failure (e.g. RUN_TRIAL raised after its
+                    # own retries were exhausted). Route it through the same
+                    # diagnose/revise recovery path used for below-threshold
+                    # results instead of hard-aborting the whole run.
+                    print(f"⚠️ [Agent] Action {plan['action'].value} failed ({error_class}). Attempting recovery.")
+                    self.memory.state["status"] = AgentState.FAILED.value
+                self.memory.save()
+
         print("\n🎉 [Agent] Flow complete. Generating final artifacts...")
         # Export logic implementation
         if self.memory.state["status"] == AgentState.COMPLETED.value:
@@ -886,11 +995,14 @@ class MetaTuneAgent:
                 print("   📦 Exporting model artifacts to local directory.")
                 # We would normally invoke `train_and_package` here to serialize a production artifact.
                 # Simulated for the MVP hook
-        
-        # Report 
-        with open(f"agent_run_report_{self.memory.state['run_id'][:6]}.json", "w") as f:
+        else:
+            print(f"   ⚠️  Run ended without meeting the success criteria: {self.memory.state.get('failure_reason', 'unknown reason')}")
+
+        # Report
+        report_path = os.path.join(self.output_dir, f"agent_run_report_{self.memory.state['run_id'][:6]}.json")
+        with open(report_path, "w") as f:
             json.dump(self.memory.state, f, indent=4, cls=NumpyEncoder)
-        print(f"   📄 Report written to agent_run_report_{self.memory.state['run_id'][:6]}.json")
+        print(f"   📄 Report written to {report_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="MetaTune Agent orchestrator")
@@ -903,6 +1015,8 @@ def main():
     parser.add_argument("--action-budget", type=int, default=12, help="Maximum number of actions allowed in a run")
     parser.add_argument("--max-runtime-sec", type=int, default=900, help="Guardrail: max wall-clock runtime in seconds")
     parser.add_argument("--max-trials", type=int, default=3, help="Guardrail: max RUN_TRIAL actions in one run")
+    parser.add_argument("--output-dir", default=".metatune_runs", help="Directory for episodic memory + run reports (default: .metatune_runs)")
+    parser.add_argument("--memory-file", default=None, help="Override the episodic memory file path (default: <output-dir>/episodic_memory.json)")
     args = parser.parse_args()
 
     agent = MetaTuneAgent(
@@ -914,7 +1028,9 @@ def main():
         approval_mode=args.approval_mode,
         action_budget=args.action_budget,
         max_runtime_sec=args.max_runtime_sec,
-        max_trials=args.max_trials
+        max_trials=args.max_trials,
+        output_dir=args.output_dir,
+        memory_file=args.memory_file,
     )
     agent.run()
 
