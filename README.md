@@ -584,11 +584,11 @@ python -m pytest tests/test_integration.py::TestAlgorithmEngineContract::test_xg
 | `tests/test_data_analyzer.py` | DNA extraction correctness, CLI simulation, auto-target-detection | Medium |
 | `tests/test_pipeline.py` | End-to-end pipeline, visualization, CLI argument parsing | Medium |
 | `tests/test_audit_generation.py` | Audit data generation (stress test dataset) | Low |
-| `test_audit.py` | Full system rigor: stress data, pipeline robustness, fake brain detector | High |
+| `tests/test_audit.py` | Full system rigor: stress data, pipeline robustness, fake brain detector | High |
 
 ### The Fake Brain Detector Test
 
-`test_audit.py::test_03_fake_code_detector` is particularly important for demos and interviews. It:
+`tests/test_audit.py::test_03_fake_code_detector` is particularly important for demos and interviews. It:
 
 1. Records the cold-start (heuristic) prediction
 2. Injects 10 artificial "high learning rate = good result" records into the knowledge base
@@ -597,7 +597,7 @@ python -m pytest tests/test_integration.py::TestAlgorithmEngineContract::test_xg
 5. Fails with "FAKE BRAIN DETECTED" if predictions are identical — proving the learning loop actually works
 
 ```bash
-python test_audit.py
+python -m pytest tests/test_audit.py
 ```
 
 ### Contract Test (Most Critical)
@@ -642,7 +642,7 @@ metatune/
 │                           #     Yields per-epoch stats for real-time UI updates
 │
 ├── engine.py               # 📦  PyTorch batch trainer (callback pattern)
-│                           #     Used by pipeline.py and bilevel.py
+│                           #     Used by agent.py, bilevel.py, pipeline.py
 │
 ├── bilevel.py              # 🔄  Bilevel optimization orchestrator
 │                           #     States: INITIALIZE → TUNE → USE_BEST
@@ -656,9 +656,18 @@ metatune/
 │                           #     Wraps brain.predict() as Designer.suggest()
 │                           #     Closes feedback loop via brain.store_experience()
 │
-├── pipeline.py             # 🚀  CLI orchestration entry point
+├── agent.py                # 🤖  Autonomous agentic orchestrator (RECOMMENDED CLI entry point)
+│                           #     Task graph + planner/executor/critic loop, guardrails
+│                           #     (--action-budget/--max-runtime-sec/--max-trials),
+│                           #     preflight leakage checks, episodic + semantic memory,
+│                           #     diagnose → revise → retry on a below-threshold trial.
+│                           #     Writes episodic memory + run reports to --output-dir
+│                           #     (default .metatune_runs/) instead of the repo root.
+│
+├── pipeline.py             # 🚀  Legacy single-shot CLI (linear, no retry/guardrails)
 │                           #     4-phase: Diagnosis → Prescription → Execution → Feedback
 │                           #     Generates metatune_report.json + metatune_graph.png
+│                           #     Kept for backward compatibility — prefer agent.py.
 │
 ├── car.py                  # 🚗  Demo dataset generator
 │                           #     15,000 cars, 50+ global brands, realistic specs
@@ -666,20 +675,19 @@ metatune/
 ├── generate_audit_data.py  # 🔥  Stress test dataset generator
 │                           #     Nulls, outliers, high cardinality, class imbalance
 │
-├── cleanup.py              # 🧹  Project reset utility
-│                           #     Removes temp files, models, CSVs while preserving core
-│
 ├── debug_csv.py            # 🐛  CSV diagnostic utility
 ├── verify_metatune.py      # ✅  Full system verification script
 ├── verify_evolution.py     # 📈  15-generation evolutionary improvement tracer
 │
 └── tests/
-    ├── test_integration.py     # 🔒  CONTRACT TEST — recommender ↔ engine sync
-    ├── test_vizier_stub.py     # 🔬  Vizier lifecycle + collision prevention
-    ├── test_brain.py           # 🧠  Meta-learner prediction structure
-    ├── test_data_analyzer.py   # 🧬  DNA extraction correctness
-    ├── test_pipeline.py        # 🚀  End-to-end pipeline + CLI
-    └── test_audit_generation.py # 📊  Stress data generation
+    ├── test_integration.py      # 🔒  CONTRACT TEST — recommender ↔ engine sync
+    ├── test_vizier_stub.py      # 🔬  Vizier lifecycle + collision prevention
+    ├── test_brain.py            # 🧠  Meta-learner prediction structure
+    ├── test_data_analyzer.py    # 🧬  DNA extraction correctness
+    ├── test_pipeline.py         # 🚀  End-to-end pipeline + CLI
+    ├── test_audit_generation.py # 📊  Stress data generation
+    ├── test_audit.py            # 🔥  Full system rigor + fake brain detector
+    └── test_agent_orchestration.py # 🤖  Agent memory/planner/critic/guardrails
 ```
 
 ---

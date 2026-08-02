@@ -4,21 +4,50 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
 env/
 venv/
+.venv/
 .env
 
 # Streamlit
 .streamlit/
 
-# MetaTune Artifacts
+# MetaTune generated artifacts (models, reports, learned experience) —
+# these are runtime OUTPUT, not source, and should never be committed.
+# The agent writes episodic memory + run reports here by default
+# (see agent.py --output-dir, default .metatune_runs/).
+.metatune_runs/
 *.pkl
 *.pth
 *.png
-*_report.json
-temp_data.csv
-metatune_graph.png
+episodic_memory.json
+agent_run_report_*.json
 metatune_report.json
+knowledge_base.csv
+preprocessing_pipeline.pkl
+trained_model.pth
+
+# Ad hoc temp datasets the agent/UI write out at runtime
+temp_*.csv
+temp_data.csv
+audit_data.csv
+
+# Scratch / debug output from manual runs — never intentional deliverables
+test_out.txt
+test_output.txt
+*.log
+
+# Large reference dumps some agentic coding tools generate for their own
+# context (e.g. a full-repo-as-text export). These are working notes for
+# an AI assistant session, not project source, and can be tens of MB —
+# regenerate locally if needed rather than committing.
+claude-code.txt
+converted-repo.txt
 
 # OS
 .DS_Store
