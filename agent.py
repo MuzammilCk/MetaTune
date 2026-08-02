@@ -277,7 +277,7 @@ class EpisodicMemory:
 # ==========================================
 
 class MetaTuneAgent:
-    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: Optional[str] = None, output_dir: str = ".metatune_runs", action_budget: int = 12, max_runtime_sec: int = 900, max_trials: int = 3):
+    def __init__(self, data_path: str, target_col: Optional[str] = None, metric_threshold: float = 0.0, use_bilevel: bool = False, force_new: bool = False, approval_mode: str = "manual", memory_file: Optional[str] = None, output_dir: str = ".metatune_runs", action_budget: int = 12, max_runtime_sec: int = 900, max_trials: int = 3, knowledge_base_path: Optional[str] = None):
         self.data_path = data_path
         self.target_col = target_col
         self.metric_threshold = metric_threshold
@@ -317,7 +317,14 @@ class MetaTuneAgent:
         # Populated by _tool_inspect_dataset; see its docstring comment.
         self._cleaned_data_cache: Optional[pd.DataFrame] = None
 
-        self.meta_learner = MetaLearner()
+        # Same output_dir treatment as memory_file above: an explicit
+        # override is honored exactly; otherwise the learned-experience
+        # file lives under output_dir instead of the repo root, and each
+        # run/test with its own output_dir gets its own knowledge base
+        # instead of silently sharing (and mutating) one global file.
+        if knowledge_base_path is None:
+            knowledge_base_path = os.path.join(self.output_dir, "knowledge_base.csv")
+        self.meta_learner = MetaLearner(knowledge_base_path=knowledge_base_path)
         self.task_graph = self._init_task_graph()
         self.tool_registry = self._init_tool_registry()
 
@@ -1031,6 +1038,7 @@ def main():
     parser.add_argument("--max-trials", type=int, default=3, help="Guardrail: max RUN_TRIAL actions in one run")
     parser.add_argument("--output-dir", default=".metatune_runs", help="Directory for episodic memory + run reports (default: .metatune_runs)")
     parser.add_argument("--memory-file", default=None, help="Override the episodic memory file path (default: <output-dir>/episodic_memory.json)")
+    parser.add_argument("--knowledge-base-path", default=None, help="Override the meta-learner's knowledge base CSV path (default: <output-dir>/knowledge_base.csv)")
     args = parser.parse_args()
 
     agent = MetaTuneAgent(
@@ -1045,6 +1053,7 @@ def main():
         max_trials=args.max_trials,
         output_dir=args.output_dir,
         memory_file=args.memory_file,
+        knowledge_base_path=args.knowledge_base_path,
     )
     agent.run()
 

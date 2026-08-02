@@ -66,14 +66,22 @@ class AdvancedMetaNet(nn.Module):
 
 # === META-LEARNER CONTROLLER ===
 class MetaLearner:
-    def __init__(self):
+    def __init__(self, knowledge_base_path=None):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.input_features = ['n_instances', 'n_features', 'n_numerical', 'n_categorical', 'dimensionality', 'missing_ratio', 'mean_skewness', 'max_skewness', 'mean_kurtosis', 'avg_correlation', 'max_correlation', 'coefficient_variation', 'avg_cardinality', 'class_imbalance_ratio', 'target_entropy', 'normalized_entropy', 'sparsity']
         self.output_params = ['learning_rate', 'weight_decay_l2', 'batch_size', 'dropout', 'optimizer_type']
         self.scaler = StandardScaler()
         self.model = None
         self.is_trained = False
-        self.knowledge_base_path = "knowledge_base.csv"
+        # Backward compatible: callers that don't specify a path (the
+        # Streamlit app, pipeline.py, designer_brain.py) keep writing to
+        # "knowledge_base.csv" in the current directory exactly as before.
+        # agent.py now passes an explicit run-scoped path (see its
+        # --output-dir) so the learned-experience file doesn't land in the
+        # repo root and isn't silently shared/mutated across unrelated runs
+        # (including test runs, which was masking a real crash — see
+        # tests/test_agent_orchestration.py::TestAgentRecoveryLoop).
+        self.knowledge_base_path = knowledge_base_path or "knowledge_base.csv"
         print(f"🧠 Meta-Learner Brain initialized on {self.device}")
 
     def _memory_guided_prediction(self, dataset_dna):

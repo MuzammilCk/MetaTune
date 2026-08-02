@@ -148,7 +148,17 @@ class DynamicTrainer:
 
         # 7. Loaders
         bs = int(self.params.get('batch_size', 32))
-        self.train_loader = DataLoader(TensorDataset(self.X_train_T, self.y_train_T), batch_size=bs, shuffle=True)
+        n_train = self.X_train_T.shape[0]
+        # BatchNorm1d raises ("Expected more than 1 value per channel when
+        # training") on any batch of size exactly 1. That happens whenever
+        # n_train % bs == 1 — not an exotic edge case, just whichever
+        # batch_size the meta-learner happens to predict for a given
+        # dataset size. drop_last=True avoids a trailing partial batch;
+        # only do that when there's still at least one full batch left
+        # afterward (n_train > bs), so a batch_size larger than the
+        # training set doesn't drop every sample and train on nothing.
+        train_drop_last = n_train > bs
+        self.train_loader = DataLoader(TensorDataset(self.X_train_T, self.y_train_T), batch_size=bs, shuffle=True, drop_last=train_drop_last)
         self.val_loader = DataLoader(TensorDataset(self.X_val_T, self.y_val_T), batch_size=bs)
         self.input_dim = X_train.shape[1]
 
