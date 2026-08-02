@@ -20,6 +20,7 @@ class MetaTunePipeline:
         self.data_path = data_path; self.target_col = target_col
         self.dataset_dna = None; self.predicted_params = None; self.training_results = None
         self.final_params = None  # Tracks the params actually used for training
+        self.cleaned_data = None  # Populated after analyze(); see run()
         self.meta_learner = MetaLearner()
         
     def run(self, train_brain=False, epochs=20): # Defaults to 20 for speed
@@ -42,6 +43,12 @@ class MetaTunePipeline:
         if not isinstance(self.dataset_dna, dict):
             print("❌ Pipeline aborted: dataset analysis failed, no DNA produced.")
             return None
+        # Use the analyzer's resolved target column (name-heuristic or
+        # explicit), not just whatever was passed in — otherwise, when the
+        # caller doesn't specify target_col, DynamicTrainer's own fallback
+        # (df.columns[-1]) can silently disagree with what was analyzed.
+        self.target_col = analyzer.target_col
+        self.cleaned_data = getattr(analyzer, "cleaned_data", None)
         print(f"   ✓ Task Type: {self.dataset_dna.get('task_type', 'Unknown')}")
         print(f"   ✓ Complexity Score: {self.dataset_dna.get('target_entropy', 0):.3f}")
 
@@ -63,20 +70,18 @@ class MetaTunePipeline:
             # Use X_train, y_train implicitly inside training logic mapped
             import pandas as pd
             from sklearn.model_selection import train_test_split
-            df = pd.read_csv(self.data_path)
-            # Impute dummy target logic mapping
-            target_col = self.target_col if self.target_col else df.columns[-1]
-            X = df.drop(columns=[target_col])
-            y = df[target_col]
+            df = self.cleaned_data if self.cleaned_data is not None else pd.read_csv(self.data_path)
+            X = df.drop(columns=[self.target_col])
+            y = df[self.target_col]
             X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
             task_type = self.dataset_dna.get('task_type', 'classification')
 
             config = BilevelConfig(max_outer_iterations=5, population_size=3)
             optimizer = BilevelOptimizer(meta_learner=self.meta_learner, config=config)
             
-            best_params = optimizer.optimize(self.dataset_dna, X_train, y_train, X_val, y_val, task_type, data_path=self.data_path)
+            best_params = optimizer.optimize(self.dataset_dna, X_train, y_train, X_val, y_val, task_type, data_path=self.data_path, target_col=self.target_col, df=self.cleaned_data)
             self.final_params = best_params
-            trainer = DynamicTrainer(self.data_path, self.dataset_dna, best_params, target_col=self.target_col)
+            trainer = DynamicTrainer(self.data_path, self.dataset_dna, best_params, target_col=self.target_col, df=self.cleaned_data)
             self.training_results = trainer.run(epochs=epochs)
             
             if self.study is not None:
@@ -95,7 +100,7 @@ class MetaTunePipeline:
             if not isinstance(e, ImportError):
                 print(f"⚠️  Bilevel optimization failed ({type(e).__name__}: {e}). Falling back to direct training.")
             self.final_params = self.predicted_params
-            trainer = DynamicTrainer(self.data_path, self.dataset_dna, self.predicted_params, target_col=self.target_col)
+            trainer = DynamicTrainer(self.data_path, self.dataset_dna, self.predicted_params, target_col=self.target_col, df=self.cleaned_data)
             self.training_results = trainer.run(epochs=epochs)
         
         # PHASE 4: FEEDBACK LOOP (Online Learning)

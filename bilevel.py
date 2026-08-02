@@ -39,10 +39,24 @@ class BilevelOptimizer:
         self.trial_history = []  # List of {"hyperparams": dict, "val_metric": float}
         self.state = "INITIALIZE"
     
-    def optimize(self, dataset_dna: dict, X_train, y_train, X_val, y_val, task_type: str, data_path: str = None) -> dict:
-        """Run bilevel optimization. Returns best hyperparams found."""
+    def optimize(self, dataset_dna: dict, X_train, y_train, X_val, y_val, task_type: str, data_path: str = None, target_col: str = None, df=None) -> dict:
+        """Run bilevel optimization. Returns best hyperparams found.
+
+        NOTE: X_train/y_train/X_val/y_val are accepted for backward
+        compatibility with existing callers but are NOT used for training —
+        see _evaluate_hyperparams. Each inner trial gets its own fresh
+        DynamicTrainer (own preprocessing fit + split) against data_path/df.
+        target_col and df (a pre-loaded, ideally already-cleaned DataFrame)
+        are what actually reach the trainer; pass them explicitly rather
+        than relying on DynamicTrainer's own "last column" fallback, which
+        will pick the wrong column for most real datasets.
+        """
         self.current_dna = dataset_dna
-        self._data_path = data_path or "temp.csv"
+        if data_path is None and df is None:
+            raise ValueError("BilevelOptimizer.optimize requires data_path and/or df.")
+        self._data_path = data_path
+        self._target_col = target_col
+        self._df = df
         
         print(f"🔄 Starting Bilevel Optimization (Vizier Inspired) for {self.config.max_outer_iterations} iterations.")
         
@@ -92,9 +106,16 @@ class BilevelOptimizer:
     def _evaluate_hyperparams(self, hyperparams: dict, X_train, y_train, X_val, y_val, task_type: str) -> float:
         """Inner loop: train with given hyperparams, return val metric.
         NOTE: X_train/y_train/X_val/y_val are accepted for API consistency
-        but not used — DynamicTrainer re-reads data_path with random_state=42."""
-        # DynamicTrainer internally reads temp.csv. We use it to match MetaTune architecture.
-        trainer = DynamicTrainer(data_path=self._data_path, dataset_dna=self.current_dna, hyperparameters=hyperparams)
+        but not used — DynamicTrainer re-derives its own split from
+        data_path/df with a fixed random_state, so an externally-supplied
+        split would just be discarded anyway."""
+        trainer = DynamicTrainer(
+            data_path=self._data_path,
+            dataset_dna=self.current_dna,
+            hyperparameters=hyperparams,
+            target_col=self._target_col,
+            df=self._df,
+        )
         result = trainer.run(epochs=10)
         return result.get("final_metric", 0.0)
     

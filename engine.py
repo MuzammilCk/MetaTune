@@ -1,6 +1,7 @@
 
 # engine.py
-"""DynamicTrainer — BATCH MODE (returns dict). Used by: bilevel.py, pipeline.py. DO NOT import in Streamlit UI — use engine_stream.py instead."""
+"""DynamicTrainer — BATCH MODE (returns dict). Used by: agent.py, bilevel.py, pipeline.py. DO NOT import in Streamlit UI — use engine_stream.py instead."""
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -21,14 +22,26 @@ import joblib
 warnings.filterwarnings('ignore')
 
 class DynamicTrainer:
-    def __init__(self, data_path, dataset_dna, hyperparameters, target_col=None, progress_callback=None):
+    def __init__(self, data_path, dataset_dna, hyperparameters, target_col=None, progress_callback=None, df=None, output_dir=None):
         self.data_path = data_path
         self.dna = dataset_dna
         self.params = hyperparameters
         self.target_col = target_col
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.callback = progress_callback # For the Web UI
-        
+        # Optional pre-loaded (and typically already-cleaned) DataFrame. When
+        # provided, prepare_data() uses it directly instead of re-reading
+        # data_path from disk — avoiding both redundant I/O and a second,
+        # independent cleaning pass that can disagree with whatever upstream
+        # analysis already did (e.g. null-target rows that were already
+        # dropped). Falls back to reading data_path when not given, so
+        # existing callers are unaffected.
+        self.df = df
+        # Where trained_model.pth / preprocessing_pipeline.pkl get written.
+        # Defaults to the current directory to match previous behavior for
+        # existing callers; agent.py passes its own run-scoped output_dir.
+        self.output_dir = output_dir or "."
+
         # Tracking
         self.train_loss_history = []
         self.val_loss_history = []
@@ -36,12 +49,21 @@ class DynamicTrainer:
 
     def prepare_data(self):
         """SCIENTIFICALLY ACCURATE PIPELINE (No Leakage)"""
-        df = pd.read_csv(self.data_path)
+        df = self.df if self.df is not None else pd.read_csv(self.data_path)
         
         # 1. Identify Target
         if self.target_col is None: 
             self.target_col = df.columns[-1]
-            
+
+        # Defensive safety net: drop rows with a null target even when we
+        # weren't handed already-cleaned data (e.g. a caller that constructs
+        # DynamicTrainer directly against a raw data_path). A null target
+        # can't be learned from, and left in place it either crashes
+        # LabelEncoder or, worse, silently creates a spurious "missing"
+        # class for classification tasks.
+        if df[self.target_col].isnull().any():
+            df = df[df[self.target_col].notna()].reset_index(drop=True)
+
         X = df.drop(columns=[self.target_col])
         y = df[self.target_col]
 
@@ -86,7 +108,7 @@ class DynamicTrainer:
         X_val = self.preprocessor.transform(X_val_raw)
 
         # Save the pipeline for Inference
-        joblib.dump(self.preprocessor, 'preprocessing_pipeline.pkl')
+        joblib.dump(self.preprocessor, os.path.join(self.output_dir, 'preprocessing_pipeline.pkl'))
 
         # 5. Target Encoding
         if self.dna['task_type'] == 'classification':
@@ -222,7 +244,7 @@ class DynamicTrainer:
             'hyperparameters': self.params,
             'input_dim': self.input_dim,
             'output_dim': self.output_dim
-        }, 'trained_model.pth')
+        }, os.path.join(self.output_dir, 'trained_model.pth'))
                 
         return {
             "status": "Optimization Complete",

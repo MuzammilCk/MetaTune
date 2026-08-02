@@ -313,7 +313,10 @@ class MetaTuneAgent:
         self.memory.state["dataset_fingerprint"] = fingerprint
         self.memory.state.setdefault("policy_trace", [])
         self.memory.save()
-        
+
+        # Populated by _tool_inspect_dataset; see its docstring comment.
+        self._cleaned_data_cache: Optional[pd.DataFrame] = None
+
         self.meta_learner = MetaLearner()
         self.task_graph = self._init_task_graph()
         self.tool_registry = self._init_tool_registry()
@@ -374,6 +377,15 @@ class MetaTuneAgent:
         if dna is None:
             raise ValueError("Dataset analysis failed: DNA signature could not be extracted (possibly due to invalid target column or entirely null data).")
         self.memory.state["dataset_dna"] = dna
+        # Cache the analyzer's already-cleaned data (nulls imputed,
+        # null-target rows dropped) so RUN_TRIAL can train on exactly what
+        # was analyzed instead of independently re-reading and re-cleaning
+        # the raw CSV. This is in-memory only, scoped to this agent
+        # instance/run — not persisted into episodic_memory.json, since a
+        # DataFrame isn't JSON-serializable and doesn't belong in the
+        # cross-run memory anyway.
+        self._cleaned_data_cache = getattr(analyzer, "cleaned_data", None)
+        self.target_col = getattr(analyzer, "target_col", self.target_col)
         semantic_context = self.memory.retrieve_semantic_context(dna, top_k=3)
         self.memory.set_working_memory("semantic_context", semantic_context)
         self.memory.set_working_memory("dataset_profile", {
@@ -442,19 +454,21 @@ class MetaTuneAgent:
             if self.request_approval(f"Proceed with Expensive Bilevel Optimization (N=trials, Evolutionary tuning)?", auto_approve=False, default_response=False):
                 from sklearn.model_selection import train_test_split
 
-                df = pd.read_csv(self.data_path)
-                target_col = self.target_col if self.target_col else df.columns[-1]
-                X = df.drop(columns=[target_col])
-                y = df[target_col]
+                df = self._cleaned_data_cache if self._cleaned_data_cache is not None else pd.read_csv(self.data_path)
+                X = df.drop(columns=[self.target_col])
+                y = df[self.target_col]
                 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
                 optimizer = BilevelOptimizer(meta_learner=self.meta_learner, config=BilevelConfig())
-                params = optimizer.optimize(dna, X_train, y_train, X_val, y_val, dna.get("task_type", "classification"), self.data_path)
+                params = optimizer.optimize(
+                    dna, X_train, y_train, X_val, y_val, dna.get("task_type", "classification"),
+                    data_path=self.data_path, target_col=self.target_col, df=self._cleaned_data_cache,
+                )
                 self.memory.state["predicted_params"] = params
             else:
                 print("   Skipping Bilevel Optimization. Falling back to direct training.")
 
-        trainer = DynamicTrainer(self.data_path, dna, params, target_col=self.target_col)
+        trainer = DynamicTrainer(self.data_path, dna, params, target_col=self.target_col, df=self._cleaned_data_cache, output_dir=self.output_dir)
         results = trainer.run(epochs=20)
 
         self.memory.state["trial_results"] = results
