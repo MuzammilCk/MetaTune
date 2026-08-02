@@ -2,6 +2,7 @@
 import unittest
 import pandas as pd
 import numpy as np
+import torch
 import os
 import sys
 import shutil
@@ -59,7 +60,29 @@ class TestMetaTuneRigorous(unittest.TestCase):
            We check if predictions CHANGE after learning from history.
         """
         print("\n🧪 Test 03: Fake Brain Detector (Online Learning Verification)...")
-        
+        # Seeded for determinism: this test's own verdict compares two
+        # predictions from freshly-constructed/trained MetaLearner
+        # instances against a fixed 0.001 threshold. Without seeding,
+        # both the cold-start network initialization and the 20-epoch
+        # training run below draw from the *global* torch/numpy RNG
+        # state, which depends on how much unrelated randomness earlier
+        # tests in the same process happened to consume — occasionally
+        # (rarely) close enough to trip the threshold either way. Seeding
+        # here (not in setUpClass) scopes the determinism to this test
+        # only, without changing what test_01/test_02 see.
+        torch.manual_seed(42)
+        np.random.seed(42)
+
+        # A TRUE cold start requires no pre-existing knowledge base: brain.py's
+        # predict() does a memory-guided nearest-neighbor lookup against
+        # knowledge_base.csv even when the network itself is untrained (see
+        # MetaLearner._memory_guided_prediction), so any row test_02 left
+        # behind — setUpClass only cleans up once, before test_01, not
+        # between test methods — would silently make "pred_cold" below not
+        # actually cold. This is what was making this test order-dependent.
+        if os.path.exists("knowledge_base.csv"):
+            os.remove("knowledge_base.csv")
+
         # 1. Get Baseline Prediction (Cold Start)
         brain = MetaLearner()
         # Mock DNA similar to audit data
