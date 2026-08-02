@@ -9,6 +9,11 @@ from sklearn.preprocessing import StandardScaler
 import pickle
 import os
 import warnings
+
+from metatune_logging import get_logger
+
+logger = get_logger(__name__)
+
 warnings.filterwarnings('ignore')
 
 # === HYBRID ARCHITECTURE: Attention + ResNet ===
@@ -82,7 +87,7 @@ class MetaLearner:
         # (including test runs, which was masking a real crash — see
         # tests/test_agent_orchestration.py::TestAgentRecoveryLoop).
         self.knowledge_base_path = knowledge_base_path or "knowledge_base.csv"
-        print(f"🧠 Meta-Learner Brain initialized on {self.device}")
+        logger.info(f"🧠 Meta-Learner Brain initialized on {self.device}")
 
     def _memory_guided_prediction(self, dataset_dna):
         """Return weighted averages from nearest historical runs when available."""
@@ -136,7 +141,7 @@ class MetaLearner:
 
     def _bootstrap_heuristics(self, dna):
         """Step A: Cold Start Heuristics (The Old 'Brain') used when no data exists."""
-        print("🧊 Cold Start: Using Heuristics to bootstrap...")
+        logger.info("🧊 Cold Start: Using Heuristics to bootstrap...")
         lr = np.clip(0.005 * np.exp(-dna.get('target_entropy', 1.0)), 0.0001, 0.01)
         l2 = 1e-3 * dna.get('mean_skewness', 0) if dna.get('mean_skewness', 0) > 2.0 else 1e-5
         l2 = np.clip(l2, 1e-6, 0.1)
@@ -184,7 +189,7 @@ class MetaLearner:
                 # Warn if the new row has columns not in the existing KB
                 new_cols = set(df_row.columns) - set(existing_columns)
                 if new_cols:
-                    print(f"⚠️  New KB columns {new_cols} dropped to match existing schema.")
+                    logger.warning(f"⚠️  New KB columns {new_cols} dropped to match existing schema.")
 
                 # Align strictly to existing CSV schema/order before append
                 df_row = df_row.reindex(columns=existing_columns)
@@ -194,17 +199,17 @@ class MetaLearner:
             except pd.errors.EmptyDataError:
                 # File exists but empty?
                 df_row.to_csv(self.knowledge_base_path, index=False)
-        print(f"💾 Experience stored to '{self.knowledge_base_path}'")
+        logger.info(f"💾 Experience stored to '{self.knowledge_base_path}'")
 
     def train(self, epochs=50):
         """Step C: Evolutionary Selection (Survival of the Fittest)."""
         if not os.path.exists(self.knowledge_base_path):
-            print("⚠️ No Knowledge Base found. Skipping training.")
+            logger.warning("⚠️ No Knowledge Base found. Skipping training.")
             return
 
         df = pd.read_csv(self.knowledge_base_path)
         if len(df) < 20:
-            print(f"⚠️  Only {len(df)} records. Need 20+ for reliable training. Using heuristics.")
+            logger.warning(f"⚠️  Only {len(df)} records. Need 20+ for reliable training. Using heuristics.")
             return
 
         # === EVOLUTIONARY SELECTION ===
@@ -214,7 +219,7 @@ class MetaLearner:
         df_elite = df[df['final_metric'] >= median_perf]
         df_elite = df_elite.copy()  # Prevent SettingWithCopyWarning on views
         
-        print(f"\n🎓 Training Meta-Brain on ELITE History ({len(df_elite)}/{len(df)} records > {median_perf:.4f})...")
+        logger.info(f"\n🎓 Training Meta-Brain on ELITE History ({len(df_elite)}/{len(df)} records > {median_perf:.4f})...")
         
         if len(df_elite) < 2:
             df_elite = df.copy() # Fallback if filtering is too aggressive
@@ -253,7 +258,7 @@ class MetaLearner:
             optimizer.step()
             
         self.is_trained = True
-        print(f"✅ Brain Training Complete on Elite Data (Loss: {loss.item():.4f})")
+        logger.info(f"✅ Brain Training Complete on Elite Data (Loss: {loss.item():.4f})")
 
     def predict(self, dataset_dna):
         """Step D: Prediction with Evolutionary Exploration (Mutation)."""
@@ -267,9 +272,9 @@ class MetaLearner:
                     self.model.load_state_dict(checkpoint['model_state'])
                     self.scaler = checkpoint['scaler']
                     self.is_trained = True
-                    print("✅ Meta-brain weights loaded from disk.")
+                    logger.info("✅ Meta-brain weights loaded from disk.")
                 except Exception as e:
-                    print(f"⚠️  Could not load weights: {e}. Using heuristics.")
+                    logger.warning(f"⚠️  Could not load weights: {e}. Using heuristics.")
                     base_pred = self._bootstrap_heuristics(dataset_dna)
                     if memory_pred:
                         return self._clamp_to_search_space(memory_pred, dataset_dna.get("vizier_search_space_hint", "{}"))

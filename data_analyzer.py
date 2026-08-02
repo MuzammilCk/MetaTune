@@ -6,6 +6,10 @@ import sys
 import os
 import warnings
 
+from metatune_logging import get_logger
+
+logger = get_logger(__name__)
+
 # Suppress warnings for cleaner output in production
 warnings.filterwarnings('ignore')
 
@@ -28,7 +32,7 @@ class DatasetAnalyzer:
         if self.target_col is not None:
             if self.target_col in self.data.columns:
                 return self.target_col, "user_provided"
-            print(f"❌ Error: Target column '{self.target_col}' not found in dataset.")
+            logger.error(f"❌ Error: Target column '{self.target_col}' not found in dataset.")
             return None, "invalid_user_target"
 
         priority_names = {
@@ -71,7 +75,7 @@ class DatasetAnalyzer:
             cleaned[col] = cleaned[col].fillna(fill_val)
 
         if len(cleaned) == 0:
-            print("❌ Error: No rows left after target null cleanup.")
+            logger.error("❌ Error: No rows left after target null cleanup.")
             return None, None
 
         clean_report = {
@@ -87,27 +91,27 @@ class DatasetAnalyzer:
         """Loads the CSV file into a Pandas DataFrame safely."""
         try:
             if not os.path.exists(self.file_path):
-                print(f"❌ Error: File not found at {self.file_path}")
+                logger.error(f"❌ Error: File not found at {self.file_path}")
                 return False
                 
             self.data = pd.read_csv(self.file_path)
             # Clean completely empty trailing columns often caused by trailing commas in CSVs
             self.data.dropna(axis=1, how='all', inplace=True)
-            print(f"✓ Success: Loaded '{os.path.basename(self.file_path)}'")
-            print(f"  Shape: {self.data.shape[0]} rows x {self.data.shape[1]} cols")
+            logger.info(f"✓ Success: Loaded '{os.path.basename(self.file_path)}'")
+            logger.info(f"  Shape: {self.data.shape[0]} rows x {self.data.shape[1]} cols")
             return True
         except Exception as e:
-            print(f"❌ Error loading file: {e}")
+            logger.error(f"❌ Error loading file: {e}")
             return False
 
     def analyze(self):
         """Performs forensic analysis on the dataset to extract its 'DNA'."""
         if self.data is None:
-            print("❌ No data loaded. Call load_data() first.")
+            logger.error("❌ No data loaded. Call load_data() first.")
             return None
 
         if len(self.data) == 0:
-            print("❌ Error: Dataset has 0 rows after loading (header-only or empty CSV).")
+            logger.error("❌ Error: Dataset has 0 rows after loading (header-only or empty CSV).")
             return None
 
         # 1. Target Column Detection
@@ -115,7 +119,7 @@ class DatasetAnalyzer:
         if detected_target is None:
             return None
         self.target_col = detected_target
-        print(f"  Auto-detected Target Column: '{self.target_col}' ({detection_method})")
+        logger.info(f"  Auto-detected Target Column: '{self.target_col}' ({detection_method})")
 
         cleaned, clean_report = self._clean_data(self.data, self.target_col)
         if cleaned is None:
@@ -183,7 +187,7 @@ class DatasetAnalyzer:
             for key in ['mean_skewness', 'max_skewness', 'mean_kurtosis', 
                        'avg_correlation', 'max_correlation', 'coefficient_variation']:
                 self.meta_features[key] = 0.0
-            print("⚠️  Warning: No numerical features detected. Skewness/correlation metrics \ndefault to 0.0. Brain predictions may be less accurate.")
+            logger.warning("⚠️  Warning: No numerical features detected. Skewness/correlation metrics \ndefault to 0.0. Brain predictions may be less accurate.")
 
         # === CATEGORICAL COMPLEXITY ===
         if len(cat_cols) > 0:
@@ -200,7 +204,7 @@ class DatasetAnalyzer:
 
         if self.meta_features["high_cardinality_flag"] == 1.0:
             n = self.meta_features["high_cardinality_feature_count"]
-            print(f"⚠️  Warning: {n} categorical feature(s) have cardinality > 50. \nConsider target encoding. OneHotEncoder may cause memory issues.")
+            logger.warning(f"⚠️  Warning: {n} categorical feature(s) have cardinality > 50. \nConsider target encoding. OneHotEncoder may cause memory issues.")
 
         # === TARGET DIFFICULTY (Task Profiling) - ROBUST FIX ===
         n_unique_target = target.nunique()
@@ -276,7 +280,12 @@ class DatasetAnalyzer:
         return self.meta_features
 
     def print_summary(self):
-        """Prints a formatted summary of results."""
+        """Prints a formatted summary of results to stdout. Deliberately
+        uses print(), not the module logger: this is an explicit "show me
+        the report" display method (e.g. a CLI --verbose flag or notebook
+        use), not operational narration, so it isn't subject to
+        --log-level filtering the way the rest of this module's messages
+        are."""
         if not self.meta_features: return
         print("\n" + "="*60 + "\nDATASET DNA (Meta-Features)\n" + "="*60)
         def _print_row(key, val):

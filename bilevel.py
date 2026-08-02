@@ -21,6 +21,10 @@ from dataclasses import dataclass
 import copy
 import ast
 
+from metatune_logging import get_logger
+
+logger = get_logger(__name__)
+
 from brain import MetaLearner
 from engine import DynamicTrainer
 
@@ -58,11 +62,11 @@ class BilevelOptimizer:
         self._target_col = target_col
         self._df = df
         
-        print(f"🔄 Starting Bilevel Optimization (Vizier Inspired) for {self.config.max_outer_iterations} iterations.")
+        logger.info(f"🔄 Starting Bilevel Optimization (Vizier Inspired) for {self.config.max_outer_iterations} iterations.")
         
         # STATE 1 - INITIALIZE
         self.state = "INITIALIZE"
-        print(f"   [STATE: {self.state}] Gathering initial {self.config.min_trials} trials...")
+        logger.info(f"   [STATE: {self.state}] Gathering initial {self.config.min_trials} trials...")
         for _ in range(self.config.min_trials):
             hyperparams = self.meta_learner.predict(dataset_dna)
             val_metric = self._evaluate_hyperparams(hyperparams, X_train, y_train, X_val, y_val, task_type)
@@ -71,7 +75,7 @@ class BilevelOptimizer:
 
         # STATE 2 - TUNE
         self.state = "TUNE"
-        print(f"   [STATE: {self.state}] Starting evolutionary search for {self.config.max_outer_iterations} outer iterations...")
+        logger.info(f"   [STATE: {self.state}] Starting evolutionary search for {self.config.max_outer_iterations} outer iterations...")
         search_hint_str = dataset_dna.get("vizier_search_space_hint", "{}")
         if isinstance(search_hint_str, dict):
             search_hint = search_hint_str
@@ -83,7 +87,7 @@ class BilevelOptimizer:
 
         for iteration in range(self.config.max_outer_iterations):
             best_anchor = self.get_best_hyperparams()
-            print(f"      Outer Iteration {iteration+1}/{self.config.max_outer_iterations} - Perturbing from best anchor")
+            logger.info(f"      Outer Iteration {iteration+1}/{self.config.max_outer_iterations} - Perturbing from best anchor")
             
             candidates = []
             for _ in range(self.config.population_size):
@@ -96,11 +100,11 @@ class BilevelOptimizer:
 
         # STATE 3 - USE_BEST
         self.state = "USE_BEST"
-        print(f"   [STATE: {self.state}] Training meta-learner on accumulated experience...")
+        logger.info(f"   [STATE: {self.state}] Training meta-learner on accumulated experience...")
         self.meta_learner.train()
         
         best_found = self.get_best_hyperparams()
-        print(f"✅ Bilevel Optimization Complete. Best metric found.")
+        logger.info(f"✅ Bilevel Optimization Complete. Best metric found.")
         return best_found
     
     def _evaluate_hyperparams(self, hyperparams: dict, X_train, y_train, X_val, y_val, task_type: str) -> float:

@@ -11,6 +11,10 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from metatune_logging import get_logger, configure_logging, level_from_name
+
+logger = get_logger(__name__)
+
 # Local imports
 try:
     from data_analyzer import DatasetAnalyzer
@@ -19,7 +23,7 @@ try:
     from bilevel import BilevelOptimizer, BilevelConfig
     import algorithm_recommender
 except ImportError as e:
-    print(f"❌ Error: Missing component files. {e}")
+    logger.error(f"❌ Error: Missing component files. {e}")
     sys.exit(1)
 
 # ==========================================
@@ -134,7 +138,7 @@ class EpisodicMemory:
         if force_new:
             self.state = self._new_state()
             self.save()
-            print(f"📂 [Memory] Starting fresh run {self.state['run_id']}")
+            logger.info(f"📂 [Memory] Starting fresh run {self.state['run_id']}")
             return
 
         if not force_new and os.path.exists(self.memory_file):
@@ -143,11 +147,11 @@ class EpisodicMemory:
                     saved_state = json.load(f)
                     if saved_state.get("status") not in [AgentState.COMPLETED.value, AgentState.FAILED.value]:
                         self.state = saved_state
-                        print(f"📂 [Memory] Resuming partial run {self.state['run_id']} from {self.memory_file}")
+                        logger.info(f"📂 [Memory] Resuming partial run {self.state['run_id']} from {self.memory_file}")
                     else:
-                        print(f"📂 [Memory] Previous run completed. Generating new memory.")
+                        logger.info(f"📂 [Memory] Previous run completed. Generating new memory.")
             except Exception as e:
-                print(f"⚠️ [Memory] Failed to load memory: {e}. Starting fresh.")
+                logger.warning(f"⚠️ [Memory] Failed to load memory: {e}. Starting fresh.")
     
     def save(self):
         try:
@@ -155,7 +159,7 @@ class EpisodicMemory:
             with open(self.memory_file, 'w') as f:
                 json.dump(self.state, f, indent=4, cls=NumpyEncoder)
         except Exception as e:
-            print(f"⚠️ [Memory] Failed to save memory: {e}")
+            logger.warning(f"⚠️ [Memory] Failed to save memory: {e}")
 
     def log_action(self, action: ActionType, status: str, result: Any = "", failure_type: Optional[FailureType] = None):
         event = {
@@ -306,7 +310,7 @@ class MetaTuneAgent:
         # Check tracking consistency
         fingerprint = self.memory.generate_fingerprint(data_path)
         if self.memory.state.get("dataset_fingerprint") and self.memory.state["dataset_fingerprint"] != fingerprint:
-            print(f"⚠️ [Agent] Dataset has changed since last run. Starting memory fresh.")
+            logger.warning(f"⚠️ [Agent] Dataset has changed since last run. Starting memory fresh.")
             self.memory.load(force_new=True)
 
         self.memory.state["data_path"] = data_path
@@ -473,7 +477,7 @@ class MetaTuneAgent:
                 )
                 self.memory.state["predicted_params"] = params
             else:
-                print("   Skipping Bilevel Optimization. Falling back to direct training.")
+                logger.info("   Skipping Bilevel Optimization. Falling back to direct training.")
 
         trainer = DynamicTrainer(self.data_path, dna, params, target_col=self.target_col, df=self._cleaned_data_cache, output_dir=self.output_dir)
         results = trainer.run(epochs=20)
@@ -517,7 +521,7 @@ class MetaTuneAgent:
 
         self.memory.state["failure_reason"] = failure
         self.memory.state["diagnosis_kind"] = diagnosis_kind
-        print(f"   Diagnosis: {failure}")
+        logger.info(f"   Diagnosis: {failure}")
         details = {"message": "Failure diagnosed", "reason": failure, "diagnosis_kind": diagnosis_kind}
         self.memory.log_action(ActionType.DIAGNOSE_FAILURE, "success", details, failure_type=FailureType.TRAINING)
         self.memory.add_episode("diagnose_failure", details)
@@ -545,7 +549,7 @@ class MetaTuneAgent:
         self.memory.state["predicted_params"] = params
 
         revision_summary = ", ".join(changes) if changes else "no tunable params available to revise"
-        print(f"   [Revise] Attempt #{revision_count}: {revision_summary}. Re-queuing a trial with the updated params.")
+        logger.info(f"   [Revise] Attempt #{revision_count}: {revision_summary}. Re-queuing a trial with the updated params.")
 
         details = {
             "message": "Strategy revised",
@@ -576,10 +580,10 @@ class MetaTuneAgent:
             return True
 
         if not sys.stdin.isatty():
-            print(f"⚠️ [APPROVAL GATE] Non-interactive shell detected. Using default response: {default_response}")
+            logger.warning(f"⚠️ [APPROVAL GATE] Non-interactive shell detected. Using default response: {default_response}")
             return default_response
 
-        print(f"\n✋ [APPROVAL GATE] {prompt}")
+        logger.info(f"\n✋ [APPROVAL GATE] {prompt}")
         while True:
             response = input("   Approve? (y/n): ").strip().lower()
             if response in ['y', 'yes']:
@@ -791,7 +795,7 @@ class MetaTuneAgent:
 
     def executor(self, action: ActionType, rationale: str = "") -> Dict[str, Any]:
         """Executes the mapped schema routines."""
-        print(f"\n🤖 [Executor] Executing action: {action.value}")
+        logger.info(f"\n🤖 [Executor] Executing action: {action.value}")
         self.memory.state["status"] = AgentState.EXECUTING.value
         self.memory.save()
         self.task_graph[action].status = TaskStatus.IN_PROGRESS
@@ -933,20 +937,20 @@ class MetaTuneAgent:
         }
 
         if metric >= self.metric_threshold and aggregate >= 0.55:
-            print(f"✅ [Critic] Model performance acceptable: {metric:.4f} >= threshold {self.metric_threshold}")
+            logger.info(f"✅ [Critic] Model performance acceptable: {metric:.4f} >= threshold {self.metric_threshold}")
             self.memory.state["status"] = AgentState.COMPLETED.value
             self.memory.save()
             return True
         else:
-            print(f"❌ [Critic] Model performance inadequate: {metric:.4f} < threshold {self.metric_threshold}")
+            logger.warning(f"❌ [Critic] Model performance inadequate: {metric:.4f} < threshold {self.metric_threshold}")
             self.memory.state["status"] = AgentState.FAILED.value
             self.memory.save()
             return False
 
     def run(self):
-        print(f"\n===========================================================")
-        print(f"🤖 MetaTune Agentic Orchestrator [Run ID: {self.memory.state['run_id']}]")
-        print(f"===========================================================\n")
+        logger.info(f"\n===========================================================")
+        logger.info(f"🤖 MetaTune Agentic Orchestrator [Run ID: {self.memory.state['run_id']}]")
+        logger.info(f"===========================================================\n")
 
         # Belt-and-suspenders cap on loop iterations, independent of the
         # action_budget/max_trials guardrails. Those already bound normal
@@ -958,7 +962,7 @@ class MetaTuneAgent:
         while self.memory.state["status"] not in [AgentState.COMPLETED.value]:
             iterations += 1
             if iterations > max_iterations:
-                print(f"⚠️ [Agent] Safety cap of {max_iterations} loop iterations reached. Stopping.")
+                logger.warning(f"⚠️ [Agent] Safety cap of {max_iterations} loop iterations reached. Stopping.")
                 self.memory.state["status"] = AgentState.FAILED.value
                 self.memory.state["failure_reason"] = f"Orchestration loop exceeded safety cap ({max_iterations} iterations)."
                 self.memory.save()
@@ -974,7 +978,7 @@ class MetaTuneAgent:
                     break  # Out of recovery options (status remains FAILED).
                 exec_result = self.executor(plan["action"], rationale=plan["rationale"])
                 if not exec_result.get("success"):
-                    print(f"⚠️ [Agent] Recovery action failed: {exec_result.get('error_class')}")
+                    logger.warning(f"⚠️ [Agent] Recovery action failed: {exec_result.get('error_class')}")
                     # Keep looping — the next iteration re-reads status and
                     # either finds another recovery step or runs out above.
                 continue
@@ -997,7 +1001,7 @@ class MetaTuneAgent:
                     # A guardrail (budget / runtime / max_trials) deliberately
                     # stopped the run. This is a clean, intentional stop, not
                     # something to route into diagnose/revise.
-                    print(f"⚠️ [Agent] Guardrail stopped the run: {exec_result.get('rationale')}")
+                    logger.warning(f"⚠️ [Agent] Guardrail stopped the run: {exec_result.get('rationale')}")
                     self.memory.state["status"] = AgentState.FAILED.value
                     self.memory.state["failure_reason"] = exec_result.get("rationale")
                 else:
@@ -1005,25 +1009,25 @@ class MetaTuneAgent:
                     # own retries were exhausted). Route it through the same
                     # diagnose/revise recovery path used for below-threshold
                     # results instead of hard-aborting the whole run.
-                    print(f"⚠️ [Agent] Action {plan['action'].value} failed ({error_class}). Attempting recovery.")
+                    logger.warning(f"⚠️ [Agent] Action {plan['action'].value} failed ({error_class}). Attempting recovery.")
                     self.memory.state["status"] = AgentState.FAILED.value
                 self.memory.save()
 
-        print("\n🎉 [Agent] Flow complete. Generating final artifacts...")
+        logger.info("\n🎉 [Agent] Flow complete. Generating final artifacts...")
         # Export logic implementation
         if self.memory.state["status"] == AgentState.COMPLETED.value:
             if self.request_approval("Export fully deployable package (.joblib/.pth)?", default_response=False):
-                print("   📦 Exporting model artifacts to local directory.")
+                logger.info("   📦 Exporting model artifacts to local directory.")
                 # We would normally invoke `train_and_package` here to serialize a production artifact.
                 # Simulated for the MVP hook
         else:
-            print(f"   ⚠️  Run ended without meeting the success criteria: {self.memory.state.get('failure_reason', 'unknown reason')}")
+            logger.warning(f"   ⚠️  Run ended without meeting the success criteria: {self.memory.state.get('failure_reason', 'unknown reason')}")
 
         # Report
         report_path = os.path.join(self.output_dir, f"agent_run_report_{self.memory.state['run_id'][:6]}.json")
         with open(report_path, "w") as f:
             json.dump(self.memory.state, f, indent=4, cls=NumpyEncoder)
-        print(f"   📄 Report written to {report_path}")
+        logger.info(f"   📄 Report written to {report_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="MetaTune Agent orchestrator")
@@ -1039,7 +1043,10 @@ def main():
     parser.add_argument("--output-dir", default=".metatune_runs", help="Directory for episodic memory + run reports (default: .metatune_runs)")
     parser.add_argument("--memory-file", default=None, help="Override the episodic memory file path (default: <output-dir>/episodic_memory.json)")
     parser.add_argument("--knowledge-base-path", default=None, help="Override the meta-learner's knowledge base CSV path (default: <output-dir>/knowledge_base.csv)")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging verbosity (default: INFO)")
     args = parser.parse_args()
+
+    configure_logging(level=level_from_name(args.log_level))
 
     agent = MetaTuneAgent(
         data_path=args.data, 
