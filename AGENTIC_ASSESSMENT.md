@@ -1,5 +1,18 @@
 # MetaTune Agentic AI Assessment (Deep Audit)
 
+> **Update (see `CHANGELOG.md`):** this assessment reflects a snapshot of
+> the codebase from before an "agent" branch refactor that fixed the
+> specific failure mode described below in "Runtime Evidence" (the flow
+> completing without the revised strategy ever being retried) and several
+> related bugs. Some rows in the scorecard below — most notably "Recovery
+> & retries" and "Safety guardrails" — were already partially addressed
+> in the codebase by the time that refactor started but hadn't been
+> re-scored here; "Recovery & retries" is annotated below with its
+> current, verified status. The rest of this document is left as
+> originally written since it's a useful historical record of what an
+> audit at that point in time found — read `CHANGELOG.md` for what's
+> true now.
+
 ## Final Verdict
 **MetaTune is currently a hybrid AutoML + orchestration system, not a fully agentic AI system yet.**
 
@@ -29,6 +42,11 @@ I reviewed:
 
 In short: it is not “just an LLM call.” It is a full operating substrate around model reasoning.
 
+(This artifact was removed from version control in the refactor covered
+by `CHANGELOG.md` — a 17MB reference dump doesn't belong in the repo
+itself. Regenerate it locally if you want to re-derive from it; nothing
+downstream depends on it being present.)
+
 ---
 
 ## Current MetaTune: Agentic Criteria Scorecard
@@ -40,7 +58,7 @@ In short: it is not “just an LLM call.” It is a full operating substrate aro
 | Executor | `executor()` dispatches action handlers | ✅ Present |
 | Critic | Threshold check on final metric | ⚠️ Minimal |
 | Episodic memory | JSON memory file + action log + fingerprints | ⚠️ Basic |
-| Recovery & retries | Simple fallback (`halve learning_rate`) | ❌ Weak |
+| Recovery & retries | ~~Simple fallback (`halve learning_rate`)~~ — **✅ Fixed** (see `CHANGELOG.md`): revise_strategy now genuinely loops back to RUN_TRIAL with updated params, bounded by `--max-trials`, instead of unconditionally ending the run after one attempt. The hyperparameter revision itself is still a fairly simple heuristic (halve LR, nudge dropout) — that part of the original criticism stands. | ⚠️ Partially fixed |
 | Tool ecosystem | Mostly local Python modules; no general tool abstraction/pool | ❌ Missing |
 | Long-horizon autonomy | No explicit objective decomposition or replanning graph | ❌ Missing |
 | Safety guardrails | Limited policy gates; no robust risk/budget/fairness controls | ❌ Missing |
